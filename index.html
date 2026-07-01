@@ -1,0 +1,2444 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#be185d">
+<title>Cortes Maite - Sistema de Citas</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" async></script>
+<style>
+:root {
+  --primary: #be185d;
+  --primary-light: #f472b6;
+  --primary-dark: #831843;
+  --secondary: #fbbf24;
+  --secondary-light: #fef3c7;
+  --bg: #fdf2f8;
+  --bg-white: #ffffff;
+  --text: #1f1225;
+  --text-light: #6b7280;
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --shadow: 0 4px 20px rgba(190,24,93,0.12);
+  --shadow-lg: 0 10px 40px rgba(190,24,93,0.18);
+  --radius: 16px;
+  --radius-sm: 10px;
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+#splash { position: fixed; inset:0; z-index:9999; background: linear-gradient(135deg, var(--primary-dark), var(--primary), var(--primary-light)); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.4s; }
+#splash.hide { opacity:0; pointer-events:none; }
+#splash .logo { font-size:64px; margin-bottom:16px; animation: pulse 1.5s infinite; }
+#splash h1 { color:#fff; font-size:28px; font-weight:800; }
+#splash p { color:rgba(255,255,255,0.8); font-size:14px; margin-top:8px; }
+#splash .loader { margin-top:30px; width:40px; height:40px; border:4px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.1); } }
+@keyframes fadeIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+@keyframes slideUp { from { opacity:0; transform:translateY(100%); } to { opacity:1; transform:translateY(0); } }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+@keyframes checkmark { 0%{stroke-dashoffset:100} 100%{stroke-dashoffset:0} }
+@keyframes cloudPulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.7; transform:scale(1.05); } }
+@keyframes spinSlow { to { transform: rotate(360deg); } }
+
+.app-header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: #fff; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; position: sticky; top:0; z-index:100; box-shadow: 0 4px 15px rgba(131,24,67,0.3); }
+.app-header h1 { font-size:17px; font-weight:700; display:flex; align-items:center; gap:8px; }
+.app-header .header-btn { background:rgba(255,255,255,0.2); border:none; color:#fff; width:42px; height:42px; border-radius:50%; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:0.3s; position:relative; }
+.app-header .header-btn:hover { background:rgba(255,255,255,0.35); }
+.app-header .header-btn.admin-active { background:var(--secondary); color:var(--primary-dark); }
+
+.cloud-status { position: absolute; top: -4px; right: -4px; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.3); transition: all 0.3s; z-index: 10; }
+.cloud-status.online { background: var(--success); animation: cloudPulse 2s infinite; }
+.cloud-status.syncing { background: var(--warning); animation: spinSlow 1.5s linear infinite; }
+.cloud-status.offline { background: var(--danger); }
+.cloud-status.unconfigured { background: #6b7280; }
+
+.bottom-nav { position: fixed; bottom:0; left:0; right:0; background: var(--bg-white); display: flex; border-top:1px solid #f3e8ff; box-shadow: 0 -4px 20px rgba(0,0,0,0.06); z-index:100; padding-bottom: env(safe-area-inset-bottom); }
+.bottom-nav button { flex:1; padding:10px 0 8px; border:none; background:none; display:flex; flex-direction:column; align-items:center; gap:3px; font-size:10px; color:var(--text-light); cursor:pointer; transition:0.3s; font-weight:600; }
+.bottom-nav button .nav-icon { font-size:22px; transition:0.3s; }
+.bottom-nav button.active { color:var(--primary); }
+.bottom-nav button.active .nav-icon { transform:scale(1.15); }
+.page { display:none; padding:20px 16px 100px; animation: fadeIn 0.4s; min-height:calc(100vh - 60px); }
+.page.active { display:block; }
+.card { background: var(--bg-white); border-radius: var(--radius); padding:20px; margin-bottom:16px; box-shadow: var(--shadow); }
+.card-title { font-size:16px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px; color:var(--primary-dark); }
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:14px 24px; border:none; border-radius:var(--radius-sm); font-size:15px; font-weight:700; cursor:pointer; transition:0.3s; width:100%; text-align:center; }
+.btn-primary { background:linear-gradient(135deg, var(--primary), var(--primary-light)); color:#fff; box-shadow:0 4px 15px rgba(190,24,93,0.3); }
+.btn-primary:active { transform:scale(0.97); }
+.btn-secondary { background:var(--secondary-light); color:#92400e; }
+.btn-danger { background:var(--danger); color:#fff; }
+.btn-success { background:var(--success); color:#fff; }
+.btn-warning { background:var(--warning); color:#fff; }
+.btn-info { background:var(--info); color:#fff; }
+.btn-outline { background:transparent; border:2px solid var(--primary); color:var(--primary); }
+.btn-sm { padding:8px 16px; font-size:13px; width:auto; border-radius:8px; }
+.form-group { margin-bottom:16px; }
+.form-group label { display:block; font-size:13px; font-weight:700; color:var(--text); margin-bottom:6px; }
+.form-group input, .form-group select, .form-group textarea { width:100%; padding:14px 16px; border:2px solid #e5e7eb; border-radius:var(--radius-sm); font-size:15px; background:#fafafa; transition:0.3s; color:var(--text); }
+.form-group input:focus, .form-group select:focus { border-color:var(--primary); outline:none; background:#fff; box-shadow:0 0 0 4px rgba(190,24,93,0.1); }
+.calendar-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.calendar-header h3 { font-size:17px; font-weight:700; color:var(--primary-dark); }
+.calendar-header button { background:var(--primary); color:#fff; border:none; width:36px; height:36px; border-radius:50%; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; text-align:center; }
+.calendar-grid .day-name { font-size:11px; font-weight:700; color:var(--text-light); padding:8px 0; }
+.calendar-grid .day { padding:10px 0; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; transition:0.2s; position:relative; }
+.calendar-grid .day:hover { background:#fce7f3; }
+.calendar-grid .day.today { border:2px solid var(--primary); }
+.calendar-grid .day.selected { background:var(--primary); color:#fff; }
+.calendar-grid .day.disabled { color:#d1d5db; pointer-events:none; text-decoration:line-through; }
+.calendar-grid .day.blocked { background:#fee2e2; color:var(--danger); pointer-events:none; }
+.calendar-grid .day.has-appointments::after { content:''; position:absolute; bottom:3px; left:50%; transform:translateX(-50%); width:5px; height:5px; background:var(--primary); border-radius:50%; }
+.calendar-grid .day.empty { pointer-events:none; }
+.time-slots { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:12px; }
+.time-slot { padding:12px 8px; border:2px solid #e5e7eb; border-radius:var(--radius-sm); text-align:center; font-size:14px; font-weight:600; cursor:pointer; transition:0.3s; background:#fff; }
+.time-slot:hover { border-color:var(--primary-light); background:#fdf2f8; }
+.time-slot.selected { background:var(--primary); color:#fff; border-color:var(--primary); }
+.time-slot.booked { background:#fee2e2; color:var(--danger); border-color:#fca5a5; pointer-events:none; cursor:not-allowed; text-decoration:line-through; }
+.time-slot.blocked-slot { background:#f3f4f6; color:#9ca3af; border-color:#d1d5db; pointer-events:none; }
+.badge { display:inline-block; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+.badge-pending { background:#fef3c7; color:#92400e; }
+.badge-confirmed { background:#d1fae5; color:#065f46; }
+.badge-cancelled { background:#fee2e2; color:#991b1b; }
+.booking-item { background:#fff; border-radius:var(--radius-sm); padding:14px; margin-bottom:10px; border-left:4px solid var(--primary); box-shadow:0 2px 8px rgba(0,0,0,0.04); }
+.booking-item .bi-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+.booking-item .bi-name { font-weight:700; font-size:15px; }
+.booking-item .bi-detail { font-size:13px; color:var(--text-light); margin-bottom:3px; display:flex; align-items:center; gap:6px; }
+.booking-item .bi-actions { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+.overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; display:none; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); }
+.overlay.show { display:flex; }
+.overlay-content { background:#fff; border-radius:var(--radius); padding:30px 24px; max-width:380px; width:100%; text-align:center; animation: slideUp 0.4s; max-height:90vh; overflow-y:auto; }
+.success-check { width:80px; height:80px; margin:0 auto 16px; }
+.success-check circle { fill:var(--success); }
+.success-check path { stroke:#fff; stroke-width:3; fill:none; stroke-dasharray:100; animation: checkmark 0.6s 0.3s forwards; stroke-dashoffset:100; stroke-linecap:round; stroke-linejoin:round; }
+.toast-container { position:fixed; top:70px; right:16px; z-index:300; display:flex; flex-direction:column; gap:8px; max-width:90vw; }
+.toast { background:#fff; border-radius:var(--radius-sm); padding:14px 18px; box-shadow:var(--shadow-lg); display:flex; align-items:center; gap:10px; animation: fadeIn 0.3s; min-width:280px; max-width:90vw; border-left:4px solid var(--primary); }
+.toast.success { border-left-color:var(--success); }
+.toast.error { border-left-color:var(--danger); }
+.toast.warning { border-left-color:var(--warning); }
+.chart-container { width:100%; margin:16px 0; position:relative; }
+.chart-container canvas { width:100%!important; height:auto!important; }
+.stats-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:16px; }
+.stat-card { background:#fff; border-radius:var(--radius-sm); padding:16px; text-align:center; box-shadow:var(--shadow); }
+.stat-card .stat-icon { font-size:28px; margin-bottom:6px; }
+.stat-card .stat-value { font-size:24px; font-weight:800; color:var(--primary); }
+.stat-card .stat-label { font-size:11px; color:var(--text-light); font-weight:600; margin-top:2px; }
+.tabs { display:flex; gap:4px; margin-bottom:16px; background:#f3e8ff; border-radius:var(--radius-sm); padding:4px; overflow-x:auto; }
+.tab { padding:10px 16px; border:none; background:none; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; color:var(--text-light); white-space:nowrap; transition:0.3s; }
+.tab.active { background:var(--primary); color:#fff; }
+.block-item { display:flex; align-items:center; justify-content:space-between; padding:12px; background:#fff; border-radius:var(--radius-sm); margin-bottom:8px; box-shadow:0 2px 6px rgba(0,0,0,0.04); }
+.block-item .block-info { font-size:14px; font-weight:600; }
+.block-item .block-sub { font-size:12px; color:var(--text-light); }
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:250; display:none; align-items:flex-end; justify-content:center; backdrop-filter:blur(3px); }
+.modal-overlay.show { display:flex; }
+.modal-content { background:#fff; border-radius:var(--radius) var(--radius) 0 0; padding:24px 20px; width:100%; max-width:500px; max-height:85vh; overflow-y:auto; animation:slideUp 0.3s; }
+.modal-handle { width:40px; height:4px; background:#d1d5db; border-radius:4px; margin:0 auto 16px; }
+.empty-state { text-align:center; padding:40px 20px; color:var(--text-light); }
+.empty-state .empty-icon { font-size:48px; margin-bottom:12px; }
+.empty-state p { font-size:14px; }
+.search-bar { position:relative; margin-bottom:16px; }
+.search-bar input { width:100%; padding:12px 16px 12px 42px; border:2px solid #e5e7eb; border-radius:var(--radius-sm); font-size:14px; background:#fff; }
+.search-bar input:focus { border-color:var(--primary); outline:none; }
+.search-bar .search-icon { position:absolute; left:14px; top:50%; transform:translateY(-50%); font-size:16px; color:var(--text-light); }
+.divider { height:1px; background:#e5e7eb; margin:16px 0; }
+.text-center { text-align:center; }
+.text-sm { font-size:13px; }
+.text-muted { color:var(--text-light); }
+.mt-12 { margin-top:12px; }
+.mb-12 { margin-bottom:12px; }
+.gap-8 { gap:8px; }
+.flex { display:flex; }
+.flex-wrap { flex-wrap:wrap; }
+.items-center { align-items:center; }
+.justify-between { justify-content:space-between; }
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--primary-light); border-radius:3px; }
+.notif-dot { position:absolute; top:-2px; right:-2px; width:10px; height:10px; background:var(--danger); border-radius:50%; border:2px solid #fff; }
+.service-tag { display:inline-block; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:700; background:#fce7f3; color:var(--primary); }
+.admin-banner { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: #fff; padding: 16px; border-radius: var(--radius); margin-bottom: 16px; display:flex; align-items:center; gap:12px; box-shadow: var(--shadow-lg); cursor:pointer; transition:0.3s; }
+.admin-banner:hover { transform: translateY(-2px); }
+.admin-banner .ab-icon { font-size:32px; }
+.admin-banner .ab-text h3 { font-size:15px; margin-bottom:2px; }
+.admin-banner .ab-text p { font-size:12px; opacity:0.85; }
+@media(min-width:500px) { .time-slots { grid-template-columns:repeat(4,1fr); } .stats-grid { grid-template-columns:repeat(4,1fr); } }
+.admin-welcome { background: linear-gradient(135deg, #fdf2f8, #fce7f3); border: 2px solid var(--primary-light); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; text-align: center; }
+.admin-welcome h2 { color: var(--primary-dark); font-size: 18px; margin-bottom: 6px; }
+.admin-welcome p { color: var(--text-light); font-size: 13px; }
+
+.sync-banner { padding: 10px 16px; margin: 10px 16px 0; border-radius: var(--radius-sm); font-size: 13px; display: none; align-items: center; gap: 10px; font-weight: 600; transition: all 0.3s; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.sync-banner.show { display: flex; }
+.sync-banner .sync-icon { font-size: 20px; flex-shrink: 0; }
+.sync-banner.online { background: linear-gradient(135deg, #d1fae5, #a7f3d0); border: 2px solid #10b981; color: #065f46; }
+.sync-banner.offline { background: linear-gradient(135deg, #fef3c7, #fde68a); border: 2px solid #f59e0b; color: #92400e; }
+.sync-banner.syncing { background: linear-gradient(135deg, #dbeafe, #bfdbfe); border: 2px solid #3b82f6; color: #1e40af; }
+.sync-banner.error { background: linear-gradient(135deg, #fee2e2, #fecaca); border: 2px solid #ef4444; color: #991b1b; }
+.sync-banner .sync-spinner { width: 16px; height: 16px; border: 2px solid rgba(30, 64, 175, 0.3); border-top-color: #1e40af; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+
+/* 🆕 TEXTO EXPLICATIVO DEL SISTEMA */
+.system-guide {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 2px solid #fbbf24;
+  border-radius: var(--radius);
+  padding: 18px;
+  margin: 16px 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #78350f;
+  box-shadow: 0 4px 12px rgba(251,191,36,0.2);
+}
+.system-guide h3 {
+  font-size: 15px;
+  font-weight: 800;
+  margin-bottom: 12px;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 2px solid #fbbf24;
+  padding-bottom: 8px;
+}
+.system-guide p {
+  margin-bottom: 10px;
+}
+.system-guide strong {
+  color: #92400e;
+}
+.system-guide .guide-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 0;
+}
+.system-guide .guide-emoji {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.system-guide .thanks {
+  margin-top: 12px;
+  font-weight: 700;
+  text-align: center;
+  font-size: 14px;
+  color: #be185d;
+  padding-top: 10px;
+  border-top: 2px dashed #fbbf24;
+}
+
+.report-tabs { display:flex; gap:4px; margin-bottom:16px; background:#f3e8ff; border-radius:var(--radius-sm); padding:4px; overflow-x:auto; }
+.report-tab { padding:10px 14px; border:none; background:none; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; color:var(--text-light); white-space:nowrap; transition:0.3s; }
+.report-tab.active { background:var(--primary); color:#fff; }
+.report-section { display:none; }
+.report-section.active { display:block; }
+.period-selector { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+.period-btn { padding:8px 14px; border:2px solid #e5e7eb; background:#fff; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; transition:0.3s; }
+.period-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+.service-bar { margin-bottom:12px; }
+.service-bar-header { display:flex; justify-content:space-between; margin-bottom:4px; font-size:13px; font-weight:600; }
+.service-bar-track { height:24px; background:#f3f4f6; border-radius:12px; overflow:hidden; position:relative; }
+.service-bar-fill { height:100%; background:linear-gradient(135deg, var(--primary), var(--primary-light)); border-radius:12px; transition:width 0.5s; display:flex; align-items:center; justify-content:flex-end; padding-right:8px; color:#fff; font-size:11px; font-weight:700; }
+.client-rank { display:flex; align-items:center; gap:12px; padding:12px; background:#fff; border-radius:var(--radius-sm); margin-bottom:8px; box-shadow:0 2px 6px rgba(0,0,0,0.04); }
+.client-rank-num { width:32px; height:32px; border-radius:50%; background:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; flex-shrink:0; }
+.client-rank-num.gold { background:linear-gradient(135deg, #fbbf24, #f59e0b); }
+.client-rank-num.silver { background:linear-gradient(135deg, #d1d5db, #9ca3af); }
+.client-rank-num.bronze { background:linear-gradient(135deg, #f59e0b, #d97706); }
+.client-rank-info { flex:1; }
+.client-rank-name { font-weight:700; font-size:14px; }
+.client-rank-stats { font-size:12px; color:var(--text-light); }
+.hour-heatmap { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.hour-cell { padding:10px 6px; background:#f3f4f6; border-radius:8px; text-align:center; font-size:12px; font-weight:600; }
+.hour-cell .count { font-size:16px; font-weight:800; color:var(--primary); display:block; }
+.hour-cell.hot { background:linear-gradient(135deg, #fee2e2, #fecaca); }
+.hour-cell.warm { background:linear-gradient(135deg, #fef3c7, #fde68a); }
+.kpi-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:16px; }
+.kpi-card { background:linear-gradient(135deg, #fff, #fdf2f8); border-radius:var(--radius-sm); padding:16px; text-align:center; box-shadow:var(--shadow); border-left:4px solid var(--primary); }
+.kpi-value { font-size:28px; font-weight:800; color:var(--primary); line-height:1; }
+.kpi-label { font-size:11px; color:var(--text-light); font-weight:600; margin-top:6px; }
+.kpi-trend { font-size:11px; margin-top:4px; font-weight:700; }
+.kpi-trend.up { color:var(--success); }
+.kpi-trend.down { color:var(--danger); }
+</style>
+</head>
+<body>
+
+<div id="splash">
+  <div class="logo">✂️</div>
+  <h1>Cortes Maite</h1>
+  <p>Sistema de Citas</p>
+  <div class="loader"></div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<div id="app" style="display:none;">
+
+  <header class="app-header">
+    <h1>✂️ Cortes Maite</h1>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <button class="header-btn" onclick="showNotifications()" title="Notificaciones" style="position:relative;">
+        🔔<span class="notif-dot" id="notifDot" style="display:none;"></span>
+      </button>
+      <button class="header-btn" id="adminToggleBtn" onclick="toggleAdmin()" title="Acceso Administrador" style="position:relative;">
+        🔐
+        <span class="cloud-status unconfigured" id="cloudStatus" title="Estado de conexión">☁️</span>
+      </button>
+    </div>
+  </header>
+
+  <div id="syncBanner" class="sync-banner">
+    <span class="sync-icon" id="syncIcon">☁️</span>
+    <span id="syncBannerText">Conectando...</span>
+  </div>
+
+  <div class="page active" id="pageHome">
+    <div class="admin-banner" onclick="toggleAdmin()" id="adminBanner">
+      <div class="ab-icon"></div>
+      <div class="ab-text" style="flex:1;">
+        <h3>Acceso Administrador</h3>
+        <p>Toca aquí para gestionar citas, bloqueos, informes y ajustes</p>
+      </div>
+      <div style="font-size:24px;">→</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📅 Selecciona una Fecha</div>
+      <div class="calendar-header">
+        <button onclick="changeMonth(-1)"></button>
+        <h3 id="calendarTitle"></h3>
+        <button onclick="changeMonth(1)">▶</button>
+      </div>
+      <div class="calendar-grid" id="calendarGrid"></div>
+    </div>
+
+    <!-- 🆕 TEXTO EXPLICATIVO DEL SISTEMA -->
+    <div class="system-guide">
+      <h3>📖 ¿Cómo funciona el sistema?</h3>
+      <p><strong>Estimada(o) cliente:</strong> Al abrir el sistema de citas <strong>Cortes Maite</strong>, usted ve arriba el calendario del mes. Puede moverse al siguiente mes también.</p>
+      
+      <div class="guide-item">
+        <span class="guide-emoji">📅</span>
+        <span><strong>Reserva hasta 45 días:</strong> Solo puede agendar cita para los próximos 45 días a partir de hoy.</span>
+      </div>
+      
+      <div class="guide-item">
+        <span class="guide-emoji"></span>
+        <span><strong>Días ocupados:</strong> Los días con color rojo ya están ocupados. Escoga el día que le convenga.</span>
+      </div>
+      
+      <div class="guide-item">
+        <span class="guide-emoji">🕐</span>
+        <span><strong>Seleccione hora:</strong> Si la hora se lo permite, puede reservar ese día y esa hora. Llene los datos solicitados y reserve.</span>
+      </div>
+      
+      <div class="guide-item">
+        <span class="guide-emoji">⚠️</span>
+        <span><strong>Hora no disponible:</strong> Si la hora no le permite abrir, es que está ocupada. Escoja otra.</span>
+      </div>
+      
+      <div class="thanks">
+        ¡Gracias por elegir Cortes Maite! 💇♀️✨
+      </div>
+    </div>
+
+    <div class="card" id="timeSlotsCard" style="display:none;">
+      <div class="card-title">🕐 Hora Disponible - <span id="selectedDateLabel"></span></div>
+      <div class="time-slots" id="timeSlotsGrid"></div>
+    </div>
+
+    <div class="card" id="bookingFormCard" style="display:none;">
+      <div class="card-title">📝 Completa tu Reserva</div>
+      <div class="form-group">
+        <label>👤 Nombre Completo</label>
+        <input type="text" id="clientName" placeholder="Nombre y Apellidos" required>
+      </div>
+      <div class="form-group">
+        <label>📱 Teléfono</label>
+        <input type="tel" id="clientPhone" placeholder="Número de teléfono" required>
+      </div>
+      <div class="form-group">
+        <label>💇‍♀️ Servicio</label>
+        <select id="clientService">
+          <option value="">Selecciona un servicio...</option>
+          <option value="Corte">✂️ Corte</option>
+          <option value="Tinte">🎨 Tinte</option>
+          <option value="Decoloración">💇 Decoloración</option>
+          <option value="Peinado">💆‍♀️ Peinado</option>
+          <option value="Tratamiento">🧴 Tratamiento</option>
+          <option value="Otros">✨ Otros</option>
+        </select>
+      </div>
+      <div class="form-group" id="otherServiceGroup" style="display:none;">
+        <label>📌 Especifica el servicio</label>
+        <input type="text" id="clientOtherService" placeholder="Describe el servicio...">
+      </div>
+      <div id="bookingSummary" class="card" style="background:#fdf2f8;border:2px solid var(--primary-light);margin-bottom:16px;"></div>
+      <button class="btn btn-primary" onclick="submitBooking()">✅ Confirmar Cita</button>
+    </div>
+  </div>
+
+  <div class="page" id="pageMyBookings">
+    <div class="card">
+      <div class="card-title">📋 Mis Citas</div>
+      <div class="search-bar">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchMyBookings" placeholder="Buscar por nombre o teléfono..." oninput="renderMyBookings()">
+      </div>
+      <div id="myBookingsList"></div>
+    </div>
+  </div>
+
+  <div class="page" id="pageAdminDash">
+    <div class="admin-welcome">
+      <h2>👑 Panel de Administración</h2>
+      <p>Bienvenida, gestiona todas las funciones de Cortes Maite desde aquí</p>
+    </div>
+
+    <div class="stats-grid" id="statsGrid"></div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchAdminTab('adminBookings',this)">📋 Reservas</button>
+      <button class="tab" onclick="switchAdminTab('adminBlocks',this)">🚫 Bloqueos</button>
+      <button class="tab" onclick="switchAdminTab('adminReports',this)">📊 Informes</button>
+      <button class="tab" onclick="switchAdminTab('adminSettings',this)">⚙️ Ajustes</button>
+      <button class="tab" onclick="switchAdminTab('adminData',this)">💾 Datos</button>
+    </div>
+
+    <div id="adminBookings" class="admin-tab">
+      <div class="card">
+        <div class="card-title">📋 Todas las Reservas</div>
+        <div class="search-bar">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchAdminBookings" placeholder="Buscar reserva..." oninput="renderAdminBookings()">
+        </div>
+        <div class="flex gap-8 mb-12 flex-wrap">
+          <button class="btn btn-sm btn-outline" onclick="filterAdminBookings('all')" id="filterAll">Todas</button>
+          <button class="btn btn-sm btn-secondary" onclick="filterAdminBookings('pending')" id="filterPending">⏳ Pendientes</button>
+          <button class="btn btn-sm btn-success" onclick="filterAdminBookings('confirmed')" id="filterConfirmed">✅ Confirmadas</button>
+          <button class="btn btn-sm btn-danger" onclick="filterAdminBookings('cancelled')" id="filterCancelled">❌ Canceladas</button>
+        </div>
+        <div id="adminBookingsList"></div>
+      </div>
+    </div>
+
+    <div id="adminBlocks" class="admin-tab" style="display:none;">
+      <div class="card">
+        <div class="card-title">🚫 Bloquear Día Completo</div>
+        <div class="form-group">
+          <label>Selecciona la fecha</label>
+          <input type="date" id="blockDate">
+        </div>
+        <div class="form-group">
+          <label>Motivo (opcional)</label>
+          <input type="text" id="blockReason" placeholder="Ej: Día libre, Vacaciones...">
+        </div>
+        <button class="btn btn-danger" onclick="blockFullDay()">🚫 Bloquear Día Completo</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">⏰ Bloquear Horas Específicas</div>
+        <div class="form-group">
+          <label>Fecha</label>
+          <input type="date" id="blockHourDate">
+        </div>
+        <div class="form-group">
+          <label>Hora de inicio</label>
+          <select id="blockHourStart"></select>
+        </div>
+        <div class="form-group">
+          <label>Hora de fin</label>
+          <select id="blockHourEnd"></select>
+        </div>
+        <button class="btn btn-warning" onclick="blockSpecificHours()">⏰ Bloquear Horas</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📌 Bloqueos Activos</div>
+        <p class="text-sm text-muted mb-12">Toca 🗑️ para desbloquear cualquier día u hora</p>
+        <div id="blocksList"></div>
+      </div>
+    </div>
+
+    <div id="adminReports" class="admin-tab" style="display:none;">
+      <div class="report-tabs">
+        <button class="report-tab active" onclick="switchReportTab('reportSummary',this)">📈 Resumen</button>
+        <button class="report-tab" onclick="switchReportTab('reportPeriod',this)">📅 Período</button>
+        <button class="report-tab" onclick="switchReportTab('reportServices',this)">💇 Servicios</button>
+        <button class="report-tab" onclick="switchReportTab('reportClients',this)"> Clientes</button>
+        <button class="report-tab" onclick="switchReportTab('reportHours',this)">⏰ Horarios</button>
+      </div>
+
+      <div id="reportSummary" class="report-section active">
+        <div class="card">
+          <div class="card-title">📊 Resumen General</div>
+          <div class="kpi-grid" id="kpiGrid"></div>
+          <div class="divider"></div>
+          <div class="card-title">📈 Citas por Mes</div>
+          <div class="chart-container"><canvas id="chartMonthly" height="250"></canvas></div>
+        </div>
+      </div>
+
+      <div id="reportPeriod" class="report-section">
+        <div class="card">
+          <div class="card-title">📅 Análisis por Período</div>
+          <div class="period-selector">
+            <button class="period-btn active" onclick="setPeriod('week',this)">📆 Esta Semana</button>
+            <button class="period-btn" onclick="setPeriod('month',this)">🗓️ Este Mes</button>
+            <button class="period-btn" onclick="setPeriod('30days',this)">📊 Últimos 30 días</button>
+            <button class="period-btn" onclick="setPeriod('custom',this)">🎯 Personalizado</button>
+          </div>
+          <div id="customPeriodInputs" style="display:none;">
+            <div class="form-group">
+              <label>Desde:</label>
+              <input type="date" id="periodFrom">
+            </div>
+            <div class="form-group">
+              <label>Hasta:</label>
+              <input type="date" id="periodTo">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="applyCustomPeriod()">🔍 Aplicar</button>
+          </div>
+          <div class="divider"></div>
+          <div id="periodResults"></div>
+        </div>
+      </div>
+
+      <div id="reportServices" class="report-section">
+        <div class="card">
+          <div class="card-title"> Resumen por Servicios</div>
+          <div id="servicesSummary"></div>
+          <div class="divider"></div>
+          <div class="card-title">📊 Distribución de Servicios</div>
+          <div class="chart-container"><canvas id="chartServices" height="250"></canvas></div>
+        </div>
+      </div>
+
+      <div id="reportClients" class="report-section">
+        <div class="card">
+          <div class="card-title">👥 Análisis de Clientes</div>
+          <div class="kpi-grid" id="clientsKpi"></div>
+          <div class="divider"></div>
+          <div class="card-title">🏆 Top 10 Clientes</div>
+          <div id="topClientsList"></div>
+        </div>
+      </div>
+
+      <div id="reportHours" class="report-section">
+        <div class="card">
+          <div class="card-title">⏰ Horas Más Populares</div>
+          <p class="text-sm text-muted mb-12">Las horas con más reservas aparecen en rojo</p>
+          <div class="hour-heatmap" id="hourHeatmap"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">📅 Días Más Ocupados</div>
+          <div class="chart-container"><canvas id="chartWeekDays" height="250"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="adminSettings" class="admin-tab" style="display:none;">
+      <div class="card">
+        <div class="card-title">⚙️ Horario de la Peluquería</div>
+        <div id="workingDaysSettings"></div>
+        <div class="divider"></div>
+        <div class="form-group">
+          <label> Hora de Apertura</label>
+          <input type="time" id="settingOpenTime" value="09:00">
+        </div>
+        <div class="form-group">
+          <label>🌙 Hora de Cierre</label>
+          <input type="time" id="settingCloseTime" value="15:00">
+        </div>
+        <div class="form-group">
+          <label>⏱️ Duración del servicio (minutos)</label>
+          <input type="number" id="settingDuration" value="45" min="15" max="120" step="5">
+        </div>
+        <button class="btn btn-primary" onclick="saveSettings()">💾 Guardar Configuración</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title"> Cambiar PIN de Administrador</div>
+        <p class="text-sm text-muted mb-12">⚠️ El PIN es privado. Solo tú puedes verlo y cambiarlo.</p>
+        <div class="form-group">
+          <label>PIN Actual</label>
+          <input type="password" id="currentPin" placeholder="••••" maxlength="6">
+        </div>
+        <div class="form-group">
+          <label>Nuevo PIN</label>
+          <input type="password" id="newPin" placeholder="••••" maxlength="6">
+        </div>
+        <button class="btn btn-secondary" onclick="changePin()">🔑 Cambiar PIN</button>
+      </div>
+    </div>
+
+    <div id="adminData" class="admin-tab" style="display:none;">
+      <div class="card">
+        <div class="card-title">💾 Respaldo de Datos</div>
+        <p class="text-sm text-muted mb-12">Tus datos se sincronizan automáticamente en la nube.</p>
+        <button class="btn btn-primary mb-12" onclick="exportData()">📤 Descargar Copia de Seguridad</button>
+        <div class="divider"></div>
+        <div class="form-group">
+          <label>📥 Restaurar desde Archivo</label>
+          <input type="file" id="importFile" accept=".json" style="padding:10px;">
+        </div>
+        <button class="btn btn-success" onclick="importData()"> Restaurar Datos</button>
+      </div>
+      <div class="card">
+        <div class="card-title">⚠️ Zona de Peligro</div>
+        <button class="btn btn-danger" onclick="clearAllData()">️ Borrar TODOS los Datos</button>
+      </div>
+    </div>
+  </div>
+
+  <nav class="bottom-nav" id="bottomNav">
+    <button class="active" onclick="showPage('pageHome',this)" id="navHome">
+      <span class="nav-icon">🏠</span>Inicio
+    </button>
+    <button onclick="showPage('pageMyBookings',this)" id="navMyBookings">
+      <span class="nav-icon">📋</span>Mis Citas
+    </button>
+    <button onclick="showPage('pageAdminDash',this)" id="navAdmin" style="display:none;">
+      <span class="nav-icon">⚙️</span>Admin
+    </button>
+  </nav>
+</div>
+
+<div class="overlay" id="adminLoginOverlay">
+  <div class="overlay-content">
+    <div style="font-size:48px;margin-bottom:12px;"></div>
+    <h2 style="margin-bottom:6px;">Acceso Administrador</h2>
+    <p class="text-sm text-muted mb-12">Introduce el PIN para acceder</p>
+    <div class="form-group">
+      <input type="password" id="adminPinInput" placeholder="PIN" maxlength="6" style="text-align:center;font-size:24px;letter-spacing:8px;" oninput="checkPin()">
+    </div>
+    <p id="pinError" style="color:var(--danger);font-size:13px;display:none;">PIN incorrecto</p>
+    <button class="btn btn-outline mt-12" onclick="closeAdminLogin()">Cancelar</button>
+  </div>
+</div>
+
+<div class="overlay" id="bookingConfirmOverlay">
+  <div class="overlay-content" id="bookingConfirmContent"></div>
+</div>
+
+<div class="modal-overlay" id="editBookingModal">
+  <div class="modal-content">
+    <div class="modal-handle"></div>
+    <div class="card-title">✏️ Editar Reserva</div>
+    <div class="form-group">
+      <label>👤 Nombre</label>
+      <input type="text" id="editName" placeholder="Nombre completo">
+    </div>
+    <div class="form-group">
+      <label>📱 Teléfono</label>
+      <input type="tel" id="editPhone" placeholder="Número de teléfono">
+    </div>
+    <div class="form-group">
+      <label>💇‍♀️ Servicio</label>
+      <select id="editService">
+        <option value="Corte">✂️ Corte</option>
+        <option value="Tinte">🎨 Tinte</option>
+        <option value="Decoloración">💇 Decoloración</option>
+        <option value="Peinado">💆‍♀️ Peinado</option>
+        <option value="Tratamiento">🧴 Tratamiento</option>
+        <option value="Otros">✨ Otros</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>📅 Fecha</label>
+      <input type="date" id="editDate">
+    </div>
+    <div class="form-group">
+      <label>🕐 Hora</label>
+      <input type="time" id="editTime">
+    </div>
+    <div class="form-group">
+      <label>📊 Estado</label>
+      <select id="editStatus">
+        <option value="pending">⏳ Pendiente</option>
+        <option value="confirmed">✅ Confirmada</option>
+        <option value="cancelled">❌ Cancelada</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-success" onclick="saveEditBooking()">💾 Guardar</button>
+      <button class="btn btn-outline" onclick="closeModal('editBookingModal')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="bookingDetailModal">
+  <div class="modal-content" id="bookingDetailContent"></div>
+</div>
+
+<div class="modal-overlay" id="notifModal">
+  <div class="modal-content">
+    <div class="modal-handle"></div>
+    <div class="card-title">🔔 Notificaciones</div>
+    <div id="notifList"></div>
+    <button class="btn btn-outline mt-12" onclick="closeNotifModal()">Cerrar</button>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://vgplzpaezxyoomdwcksa.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZncGx6cGFlenh5b29tZHdja3NhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4NDMwMzcsImV4cCI6MjA5ODQxOTAzN30.K6E5iDNeWXScKvs5gJCIZmykt8XMffwsMHNHf_q-u6w';
+
+const TELEGRAM_TOKEN = '8386782325:AAGFNigGlRluKkyDdxvHt2gObNPva7h3Hkc';
+const TELEGRAM_CHAT_ID = '8288681615';
+
+const MAX_DAYS_AHEAD = 45;
+
+const DEFAULT_SETTINGS = {
+  pin: '190699',
+  openTime: '09:00',
+  closeTime: '15:00',
+  duration: 45,
+  workingDays: {0:false, 1:true, 2:true, 3:true, 4:true, 5:true, 6:false}
+};
+
+let state = {
+  bookings: [], blocks: [], settings: {...DEFAULT_SETTINGS}, notifications: [],
+  currentMonth: new Date().getMonth(), currentYear: new Date().getFullYear(),
+  selectedDate: null, selectedTime: null,
+  isAdmin: false, adminFilter: 'all',
+  isOnline: false, localChanges: new Set(),
+  editingBookingId: null,
+  currentPeriod: 'week'
+};
+
+let supabaseClient = null;
+let realtimeChannel = null;
+
+function loadLocalData() {
+  try {
+    const saved = localStorage.getItem('cortesMaite');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      state.bookings = parsed.bookings || [];
+      state.blocks = parsed.blocks || [];
+      state.settings = {...DEFAULT_SETTINGS, ...(parsed.settings || {})};
+      state.notifications = parsed.notifications || [];
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+function saveLocalData() {
+  try {
+    localStorage.setItem('cortesMaite', JSON.stringify({
+      bookings: state.bookings, blocks: state.blocks,
+      settings: state.settings, notifications: state.notifications,
+      lastSync: new Date().toISOString()
+    }));
+  } catch(e) {}
+}
+
+function getMaxDateStr() {
+  const maxDate = new Date();
+  maxDate.setDate(maxDate.getDate() + MAX_DAYS_AHEAD);
+  return `${maxDate.getFullYear()}-${(maxDate.getMonth()+1).toString().padStart(2,'0')}-${maxDate.getDate().toString().padStart(2,'0')}`;
+}
+
+function waitForSupabase(timeout = 5000) {
+  return new Promise((resolve) => {
+    if (window.supabase) { resolve(true); return; }
+    const start = Date.now();
+    const check = setInterval(() => {
+      if (window.supabase) { clearInterval(check); resolve(true); }
+      else if (Date.now() - start > timeout) { clearInterval(check); resolve(false); }
+    }, 100);
+  });
+}
+
+async function initSupabase() {
+  if (SUPABASE_URL.includes('TU-PROYECTO') || SUPABASE_KEY.includes('TU_ANON_KEY')) {
+    updateCloudStatus('unconfigured', '⚙️');
+    showBanner('offline', '⚙️', 'Modo local - Configura Supabase');
+    return;
+  }
+  
+  showBanner('syncing', null, '🔄 Conectando con la nube...');
+  updateCloudStatus('syncing', '⏳');
+  
+  const loaded = await waitForSupabase(5000);
+  
+  if (!loaded) {
+    showBanner('error', '❌', 'No se pudo conectar. Modo local.');
+    updateCloudStatus('offline', '⚠️');
+    setTimeout(() => hideBanner(), 5000);
+    return;
+  }
+  
+  try {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      realtime: { params: { eventsPerSecond: 10 } }
+    });
+    
+    await loadFromSupabase();
+    subscribeToRealtime();
+    
+    state.isOnline = true;
+    updateCloudStatus('online', '✓');
+    showBanner('online', '✅', 'Sincronizado en tiempo real');
+    setTimeout(() => hideBanner(), 3000);
+    
+  } catch (error) {
+    showBanner('error', '❌', 'Error de conexión. Modo local.');
+    updateCloudStatus('offline', '⚠️');
+    setTimeout(() => hideBanner(), 5000);
+  }
+}
+
+async function loadFromSupabase() {
+  if (!supabaseClient) return;
+  
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('timeout')), 4000);
+  });
+  
+  const loadPromise = (async () => {
+    const [citasRes, bloqueosRes, configRes, notifsRes] = await Promise.all([
+      supabaseClient.from('citas').select('*').order('fecha', { ascending: true }),
+      supabaseClient.from('bloqueos').select('*'),
+      supabaseClient.from('configuracion').select('*').eq('clave', 'settings').single(),
+      supabaseClient.from('notificaciones').select('*').order('fecha', { ascending: false }).limit(50)
+    ]);
+    
+    let hasChanges = false;
+    
+    if (!citasRes.error && citasRes.data) {
+      state.bookings = citasRes.data.map(c => ({
+        id: c.id, name: c.nombre, phone: c.telefono, service: c.servicio,
+        date: c.fecha, time: c.hora.substring(0, 5), status: c.estado, createdAt: c.created_at
+      }));
+      hasChanges = true;
+    }
+    
+    if (!bloqueosRes.error && bloqueosRes.data) {
+      state.blocks = bloqueosRes.data.map(b => ({
+        id: b.id, type: b.tipo, date: b.fecha, reason: b.razon || '',
+        startTime: b.hora_inicio ? b.hora_inicio.substring(0, 5) : null,
+        endTime: b.hora_fin ? b.hora_fin.substring(0, 5) : null
+      }));
+      hasChanges = true;
+    }
+    
+    if (!configRes.error && configRes.data) {
+      state.settings = {...DEFAULT_SETTINGS, ...configRes.data.valor};
+      hasChanges = true;
+    }
+    
+    if (!notifsRes.error && notifsRes.data) {
+      state.notifications = notifsRes.data.map(n => ({
+        id: n.id, title: n.titulo, message: n.mensaje,
+        type: n.tipo, time: n.fecha, read: n.leida
+      }));
+      hasChanges = true;
+    }
+    
+    if (hasChanges) {
+      saveLocalData();
+      refreshAllViews();
+    }
+  })();
+  
+  try { await Promise.race([loadPromise, timeoutPromise]); }
+  catch (error) { console.warn('Supabase timeout'); }
+}
+
+function subscribeToRealtime() {
+  if (!supabaseClient) return;
+  
+  realtimeChannel = supabaseClient
+    .channel('cortes-maite-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'citas' }, handleRealtimeCita)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'bloqueos' }, handleRealtimeBloqueo)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'configuracion' }, handleRealtimeConfig)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'notificaciones' }, handleRealtimeNotif)
+    .subscribe();
+}
+
+function handleRealtimeCita(payload) {
+  const id = payload.new?.id || payload.old?.id;
+  if (state.localChanges.has('cita-' + id)) { state.localChanges.delete('cita-' + id); return; }
+  
+  if (payload.eventType === 'INSERT') {
+    const c = payload.new;
+    if (!state.bookings.find(b => b.id === c.id)) {
+      state.bookings.push({
+        id: c.id, name: c.nombre, phone: c.telefono, service: c.servicio,
+        date: c.fecha, time: c.hora.substring(0, 5), status: c.estado, createdAt: c.created_at
+      });
+      showToast(`🆕 Nueva cita de ${c.nombre}`, 'info');
+    }
+  } else if (payload.eventType === 'UPDATE') {
+    const c = payload.new;
+    const idx = state.bookings.findIndex(b => b.id === c.id);
+    if (idx !== -1) {
+      state.bookings[idx] = {
+        id: c.id, name: c.nombre, phone: c.telefono, service: c.servicio,
+        date: c.fecha, time: c.hora.substring(0, 5), status: c.estado, createdAt: c.created_at
+      };
+    }
+  } else if (payload.eventType === 'DELETE') {
+    state.bookings = state.bookings.filter(b => b.id !== payload.old.id);
+  }
+  
+  saveLocalData();
+  refreshAllViews();
+}
+
+function handleRealtimeBloqueo(payload) {
+  const id = payload.new?.id || payload.old?.id;
+  if (state.localChanges.has('bloqueo-' + id)) { state.localChanges.delete('bloqueo-' + id); return; }
+  
+  if (payload.eventType === 'INSERT') {
+    const b = payload.new;
+    state.blocks.push({
+      id: b.id, type: b.tipo, date: b.fecha, reason: b.razon || '',
+      startTime: b.hora_inicio ? b.hora_inicio.substring(0, 5) : null,
+      endTime: b.hora_fin ? b.hora_fin.substring(0, 5) : null
+    });
+  } else if (payload.eventType === 'DELETE') {
+    state.blocks = state.blocks.filter(b => b.id !== payload.old.id);
+  }
+  
+  saveLocalData();
+  refreshAllViews();
+}
+
+function handleRealtimeConfig(payload) {
+  if (payload.new && payload.new.clave === 'settings') {
+    state.settings = {...DEFAULT_SETTINGS, ...payload.new.valor};
+    saveLocalData();
+    refreshAllViews();
+  }
+}
+
+function handleRealtimeNotif(payload) {
+  const id = payload.new?.id || payload.old?.id;
+  if (state.localChanges.has('notif-' + id)) { state.localChanges.delete('notif-' + id); return; }
+  
+  if (payload.eventType === 'INSERT') {
+    const n = payload.new;
+    state.notifications.unshift({
+      id: n.id, title: n.titulo, message: n.mensaje,
+      type: n.tipo, time: n.fecha, read: n.leida
+    });
+    updateNotifDot();
+  }
+  saveLocalData();
+}
+
+function refreshAllViews() {
+  renderCalendar();
+  if (state.selectedDate) renderTimeSlots();
+  renderMyBookings();
+  if (state.isAdmin) {
+    renderStats();
+    renderAdminBookings();
+    renderBlocks();
+  }
+}
+
+function updateCloudStatus(status, icon) {
+  const cloud = document.getElementById('cloudStatus');
+  if (!cloud) return;
+  cloud.className = 'cloud-status ' + status;
+  cloud.textContent = icon || '☁️';
+}
+
+function showBanner(type, icon, message) {
+  const banner = document.getElementById('syncBanner');
+  const bannerText = document.getElementById('syncBannerText');
+  const syncIcon = document.getElementById('syncIcon');
+  if (!banner) return;
+  banner.className = 'sync-banner show ' + type;
+  bannerText.textContent = message;
+  if (type === 'syncing') syncIcon.innerHTML = '<div class="sync-spinner"></div>';
+  else syncIcon.textContent = icon || '☁️';
+}
+
+function hideBanner() {
+  const banner = document.getElementById('syncBanner');
+  if (banner) banner.classList.remove('show');
+}
+
+async function saveCitaToSupabase(booking) {
+  if (!supabaseClient) return;
+  state.localChanges.add('cita-' + booking.id);
+  try {
+    await supabaseClient.from('citas').insert([{
+      id: booking.id, nombre: booking.name, telefono: booking.phone,
+      fecha: booking.date, hora: booking.time + ':00',
+      servicio: booking.service, estado: booking.status
+    }]);
+  } catch (error) {}
+}
+
+async function updateCitaInSupabase(booking) {
+  if (!supabaseClient) return;
+  state.localChanges.add('cita-' + booking.id);
+  try {
+    await supabaseClient.from('citas').update({
+      nombre: booking.name, telefono: booking.phone,
+      fecha: booking.date, hora: booking.time + ':00',
+      servicio: booking.service, estado: booking.status
+    }).eq('id', booking.id);
+  } catch (error) {}
+}
+
+async function deleteCitaFromSupabase(id) {
+  if (!supabaseClient) return;
+  state.localChanges.add('cita-' + id);
+  try { await supabaseClient.from('citas').delete().eq('id', id); }
+  catch (error) {}
+}
+
+async function saveBloqueoToSupabase(block) {
+  if (!supabaseClient) return;
+  state.localChanges.add('bloqueo-' + block.id);
+  try {
+    await supabaseClient.from('bloqueos').insert([{
+      id: block.id, tipo: block.type, fecha: block.date,
+      razon: block.reason || '',
+      hora_inicio: block.startTime ? block.startTime + ':00' : null,
+      hora_fin: block.endTime ? block.endTime + ':00' : null
+    }]);
+  } catch (error) {}
+}
+
+async function deleteBloqueoFromSupabase(id) {
+  if (!supabaseClient) return;
+  state.localChanges.add('bloqueo-' + id);
+  try { await supabaseClient.from('bloqueos').delete().eq('id', id); }
+  catch (error) {}
+}
+
+async function saveSettingsToSupabase() {
+  if (!supabaseClient) return;
+  try {
+    await supabaseClient.from('configuracion')
+      .upsert([{ clave: 'settings', valor: state.settings }], { onConflict: 'clave' });
+  } catch (error) {}
+}
+
+async function saveNotifToSupabase(notif) {
+  if (!supabaseClient) return;
+  state.localChanges.add('notif-' + notif.id);
+  try {
+    await supabaseClient.from('notificaciones').insert([{
+      id: notif.id, titulo: notif.title, mensaje: notif.message,
+      tipo: notif.type, fecha: notif.time, leida: notif.read
+    }]);
+  } catch (error) {}
+}
+
+async function markNotifsReadInSupabase() {
+  if (!supabaseClient) return;
+  try {
+    const ids = state.notifications.map(n => n.id);
+    if (ids.length > 0) {
+      await supabaseClient.from('notificaciones').update({ leida: true }).in('id', ids);
+    }
+  } catch (error) {}
+}
+
+async function clearAllFromSupabase() {
+  if (!supabaseClient) return;
+  try {
+    await supabaseClient.from('citas').delete().neq('id', '');
+    await supabaseClient.from('bloqueos').delete().neq('id', '');
+    await supabaseClient.from('notificaciones').delete().neq('id', '');
+  } catch (error) {}
+}
+
+function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 5); }
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const days = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  return `${days[d.getDay()]}, ${d.getDate()} de ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function formatDateShort(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()}`;
+}
+
+function getTodayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
+}
+
+function showToast(message, type='info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  const icons = {success:'✅', error:'❌', warning:'️', info:'ℹ️'};
+  toast.innerHTML = `<span style="font-size:20px;">${icons[type]||'ℹ️'}</span><span style="font-size:14px;font-weight:600;">${message}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => { toast.style.opacity='0'; toast.style.transform='translateX(100px)'; toast.style.transition='0.3s'; setTimeout(()=>toast.remove(),300); }, 3500);
+}
+
+function addNotification(title, message, type='info') {
+  const notif = {
+    id: generateId(), title, message, type,
+    time: new Date().toISOString(), read: false
+  };
+  state.notifications.unshift(notif);
+  if (state.notifications.length > 50) state.notifications.pop();
+  saveLocalData();
+  saveNotifToSupabase(notif);
+  updateNotifDot();
+}
+
+function updateNotifDot() {
+  const unread = state.notifications.filter(n => !n.read).length;
+  document.getElementById('notifDot').style.display = unread > 0 ? 'block' : 'none';
+}
+
+async function enviarCitaATelegram(nombre, fecha, hora, servicio, telefono) {
+  const mensaje = `🔔 *NUEVA CITA SOLICITADA*\n\n👤 *Cliente:* ${nombre}\n📱 *Teléfono:* ${telefono}\n💇‍♀️ *Servicio:* ${servicio}\n📅 *Fecha:* ${fecha}\n⏰ *Hora:* ${hora}\n\n_(Responde para confirmar)_`;
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: mensaje, parse_mode: 'Markdown' })
+    });
+    return response.ok;
+  } catch (error) { return false; }
+}
+
+function showPage(pageId, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+  document.querySelectorAll('.bottom-nav button').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  if (pageId === 'pageMyBookings') renderMyBookings();
+  if (pageId === 'pageAdminDash') {
+    if (!state.isAdmin) { toggleAdmin(); return; }
+    renderAdminDashboard();
+  }
+  if (pageId === 'pageHome') renderCalendar();
+}
+
+function switchAdminTab(tabId, btn) {
+  document.querySelectorAll('.admin-tab').forEach(t => t.style.display = 'none');
+  document.getElementById(tabId).style.display = 'block';
+  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  if (tabId === 'adminReports') {
+    setTimeout(() => {
+      renderReportsSummary();
+      renderReportsServices();
+      renderReportsClients();
+      renderReportsHours();
+    }, 100);
+  }
+  if (tabId === 'adminSettings') renderSettings();
+  if (tabId === 'adminBlocks') renderBlocks();
+  if (tabId === 'adminBookings') renderAdminBookings();
+}
+
+function renderAdminDashboard() {
+  renderStats(); renderAdminBookings(); renderBlocks();
+  populateHourSelects(); renderSettings();
+}
+
+function switchReportTab(tabId, btn) {
+  document.querySelectorAll('.report-section').forEach(s => s.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  document.querySelectorAll('.report-tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  
+  setTimeout(() => {
+    if (tabId === 'reportSummary') renderReportsSummary();
+    if (tabId === 'reportPeriod') renderReportsPeriod();
+    if (tabId === 'reportServices') renderReportsServices();
+    if (tabId === 'reportClients') renderReportsClients();
+    if (tabId === 'reportHours') renderReportsHours();
+  }, 50);
+}
+
+function renderReportsSummary() {
+  const today = new Date();
+  const thisMonth = today.getMonth();
+  const thisYear = today.getFullYear();
+  const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+  const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+  
+  const activeBookings = state.bookings.filter(b => b.status !== 'cancelled');
+  const thisMonthBookings = activeBookings.filter(b => {
+    const d = new Date(b.date + 'T00:00:00');
+    return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
+  });
+  const lastMonthBookings = activeBookings.filter(b => {
+    const d = new Date(b.date + 'T00:00:00');
+    return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
+  });
+  
+  const uniqueClients = new Set(activeBookings.map(b => b.phone)).size;
+  const confirmed = activeBookings.filter(b => b.status === 'confirmed').length;
+  const pending = activeBookings.filter(b => b.status === 'pending').length;
+  const cancelled = state.bookings.filter(b => b.status === 'cancelled').length;
+  const total = state.bookings.length;
+  const confirmationRate = total > 0 ? Math.round((confirmed / total) * 100) : 0;
+  
+  const trend = lastMonthBookings.length > 0 
+    ? Math.round(((thisMonthBookings.length - lastMonthBookings.length) / lastMonthBookings.length) * 100)
+    : 0;
+  
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-value">${total}</div>
+      <div class="kpi-label">Total Citas</div>
+      <div class="kpi-trend ${trend >= 0 ? 'up' : 'down'}">${trend >= 0 ? '↑' : '↓'} ${Math.abs(trend)}% vs mes anterior</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value">${uniqueClients}</div>
+      <div class="kpi-label">Clientes Únicos</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value">${confirmationRate}%</div>
+      <div class="kpi-label">Tasa Confirmación</div>
+      <div class="kpi-trend">${confirmed} confirmadas · ${pending} pendientes</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value">${thisMonthBookings.length}</div>
+      <div class="kpi-label">Citas Este Mes</div>
+      <div class="kpi-trend">${cancelled} canceladas</div>
+    </div>
+  `;
+  
+  renderMonthlyChart();
+}
+
+function setPeriod(period, btn) {
+  state.currentPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  
+  const customInputs = document.getElementById('customPeriodInputs');
+  if (period === 'custom') {
+    customInputs.style.display = 'block';
+    const today = new Date();
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    document.getElementById('periodFrom').value = weekAgo.toISOString().split('T')[0];
+    document.getElementById('periodTo').value = today.toISOString().split('T')[0];
+  } else {
+    customInputs.style.display = 'none';
+    renderReportsPeriod();
+  }
+}
+
+function applyCustomPeriod() {
+  renderReportsPeriod();
+}
+
+function renderReportsPeriod() {
+  const today = new Date();
+  let fromDate, toDate;
+  
+  if (state.currentPeriod === 'week') {
+    const dayOfWeek = today.getDay();
+    fromDate = new Date(today);
+    fromDate.setDate(today.getDate() - dayOfWeek);
+    toDate = new Date(fromDate);
+    toDate.setDate(fromDate.getDate() + 6);
+  } else if (state.currentPeriod === 'month') {
+    fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+    toDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  } else if (state.currentPeriod === '30days') {
+    toDate = new Date(today);
+    fromDate = new Date(today);
+    fromDate.setDate(today.getDate() - 30);
+  } else if (state.currentPeriod === 'custom') {
+    const fromVal = document.getElementById('periodFrom').value;
+    const toVal = document.getElementById('periodTo').value;
+    if (!fromVal || !toVal) {
+      document.getElementById('periodResults').innerHTML = '<p class="text-muted">Selecciona un rango de fechas</p>';
+      return;
+    }
+    fromDate = new Date(fromVal + 'T00:00:00');
+    toDate = new Date(toVal + 'T00:00:00');
+  }
+  
+  const fromStr = fromDate.toISOString().split('T')[0];
+  const toStr = toDate.toISOString().split('T')[0];
+  
+  const periodBookings = state.bookings.filter(b => {
+    return b.date >= fromStr && b.date <= toStr;
+  });
+  
+  const active = periodBookings.filter(b => b.status !== 'cancelled');
+  const confirmed = periodBookings.filter(b => b.status === 'confirmed').length;
+  const pending = periodBookings.filter(b => b.status === 'pending').length;
+  const cancelled = periodBookings.filter(b => b.status === 'cancelled').length;
+  const uniqueClients = new Set(active.map(b => b.phone)).size;
+  
+  const services = {};
+  active.forEach(b => { services[b.service] = (services[b.service] || 0) + 1; });
+  const topService = Object.entries(services).sort((a,b) => b[1] - a[1])[0];
+  
+  const periodNames = {
+    'week': 'Esta Semana',
+    'month': 'Este Mes',
+    '30days': 'Últimos 30 días',
+    'custom': `${formatDateShort(fromStr)} - ${formatDateShort(toStr)}`
+  };
+  
+  document.getElementById('periodResults').innerHTML = `
+    <h3 style="margin-bottom:12px;font-size:15px;color:var(--primary-dark);">📊 ${periodNames[state.currentPeriod]}</h3>
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-value">${periodBookings.length}</div>
+        <div class="kpi-label">Total Citas</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value">${uniqueClients}</div>
+        <div class="kpi-label">Clientes Únicos</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value">${confirmed}</div>
+        <div class="kpi-label">✅ Confirmadas</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value">${pending}</div>
+        <div class="kpi-label">⏳ Pendientes</div>
+      </div>
+    </div>
+    <div class="card" style="background:#fdf2f8;border:2px solid var(--primary-light);margin-top:12px;">
+      <div style="font-size:13px;margin-bottom:6px;">📈 Desglose:</div>
+      <div class="bi-detail">✅ Confirmadas: <strong>${confirmed}</strong></div>
+      <div class="bi-detail">⏳ Pendientes: <strong>${pending}</strong></div>
+      <div class="bi-detail">❌ Canceladas: <strong>${cancelled}</strong></div>
+      ${topService ? `<div class="bi-detail" style="margin-top:8px;">🏆 Servicio más popular: <strong>${topService[0]}</strong> (${topService[1]} citas)</div>` : ''}
+    </div>
+  `;
+}
+
+function renderReportsServices() {
+  const active = state.bookings.filter(b => b.status !== 'cancelled');
+  const services = {};
+  active.forEach(b => { services[b.service] = (services[b.service] || 0) + 1; });
+  
+  const entries = Object.entries(services).sort((a,b) => b[1] - a[1]);
+  const total = active.length;
+  
+  if (entries.length === 0) {
+    document.getElementById('servicesSummary').innerHTML = '<p class="text-muted">No hay datos aún</p>';
+    return;
+  }
+  
+  const colors = ['#be185d','#f472b6','#fbbf24','#10b981','#3b82f6','#8b5cf6','#ef4444'];
+  
+  document.getElementById('servicesSummary').innerHTML = entries.map(([name, count], i) => {
+    const percent = Math.round((count / total) * 100);
+    return `
+      <div class="service-bar">
+        <div class="service-bar-header">
+          <span>${name}</span>
+          <span>${count} citas (${percent}%)</span>
+        </div>
+        <div class="service-bar-track">
+          <div class="service-bar-fill" style="width:${percent}%;background:${colors[i % colors.length]}">${percent}%</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  renderServiceChart();
+}
+
+function renderReportsClients() {
+  const active = state.bookings.filter(b => b.status !== 'cancelled');
+  const clients = {};
+  active.forEach(b => {
+    const key = b.phone;
+    if (!clients[key]) clients[key] = { name: b.name, phone: b.phone, count: 0, firstDate: b.date, lastDate: b.date };
+    clients[key].count++;
+    if (b.date < clients[key].firstDate) clients[key].firstDate = b.date;
+    if (b.date > clients[key].lastDate) clients[key].lastDate = b.date;
+  });
+  
+  const clientList = Object.values(clients);
+  const newClients = clientList.filter(c => c.count === 1).length;
+  const returning = clientList.filter(c => c.count > 1).length;
+  const avgVisits = clientList.length > 0 ? (active.length / clientList.length).toFixed(1) : 0;
+  
+  document.getElementById('clientsKpi').innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-value">${clientList.length}</div>
+      <div class="kpi-label">Total Clientes</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value">${newClients}</div>
+      <div class="kpi-label">🆕 Nuevas</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value">${returning}</div>
+      <div class="kpi-label">🔄 Recurrentes</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value">${avgVisits}</div>
+      <div class="kpi-label"> Promedio Visitas</div>
+    </div>
+  `;
+  
+  const sorted = clientList.sort((a,b) => b.count - a.count).slice(0, 10);
+  
+  if (sorted.length === 0) {
+    document.getElementById('topClientsList').innerHTML = '<p class="text-muted">No hay datos aún</p>';
+    return;
+  }
+  
+  document.getElementById('topClientsList').innerHTML = sorted.map((c, i) => {
+    const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
+    return `
+      <div class="client-rank">
+        <div class="client-rank-num ${rankClass}">${i < 3 ? medal : (i+1)}</div>
+        <div class="client-rank-info">
+          <div class="client-rank-name">${c.name}</div>
+          <div class="client-rank-stats">📱 ${c.phone} · ${c.count} cita${c.count>1?'s':''} · Desde ${formatDateShort(c.firstDate)}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderReportsHours() {
+  const active = state.bookings.filter(b => b.status !== 'cancelled');
+  
+  const hourCounts = {};
+  active.forEach(b => {
+    const hour = b.time.substring(0, 2) + ':00';
+    hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+  });
+  
+  const maxCount = Math.max(...Object.values(hourCounts), 1);
+  
+  const [openH] = state.settings.openTime.split(':').map(Number);
+  const [closeH] = state.settings.closeTime.split(':').map(Number);
+  
+  let html = '';
+  for (let h = openH; h < closeH; h++) {
+    const hourStr = `${h.toString().padStart(2,'0')}:00`;
+    const count = hourCounts[hourStr] || 0;
+    const intensity = count / maxCount;
+    const cellClass = intensity > 0.7 ? 'hot' : intensity > 0.4 ? 'warm' : '';
+    html += `
+      <div class="hour-cell ${cellClass}">
+        <span class="count">${count}</span>
+        ${hourStr}
+      </div>
+    `;
+  }
+  
+  document.getElementById('hourHeatmap').innerHTML = html || '<p class="text-muted">No hay datos</p>';
+  
+  renderWeekDayChart();
+}
+
+function renderServiceChart() {
+  const canvas = document.getElementById('chartServices');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.offsetWidth * dpr;
+  canvas.height = 250 * dpr;
+  ctx.scale(dpr, dpr);
+  const w = canvas.offsetWidth;
+  const h = 250;
+  ctx.clearRect(0, 0, w, h);
+
+  const active = state.bookings.filter(b => b.status !== 'cancelled');
+  const services = {};
+  active.forEach(b => { services[b.service] = (services[b.service] || 0) + 1; });
+
+  const entries = Object.entries(services).sort((a,b) => b[1] - a[1]);
+  if (entries.length === 0) {
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Sin datos aún', w/2, h/2);
+    return;
+  }
+
+  const colors = ['#be185d','#f472b6','#fbbf24','#10b981','#3b82f6','#8b5cf6','#ef4444','#06b6d4'];
+  const maxVal = Math.max(...entries.map(e => e[1]));
+  const barWidth = Math.min(50, (w - 60) / entries.length - 10);
+  const startX = (w - (entries.length * (barWidth + 10))) / 2;
+  const chartH = h - 60;
+
+  entries.forEach(([name, count], i) => {
+    const x = startX + i * (barWidth + 10);
+    const barH = (count / maxVal) * chartH;
+    const y = chartH - barH + 10;
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, barWidth, barH, 6);
+    else ctx.rect(x, y, barWidth, barH);
+    ctx.fill();
+    ctx.fillStyle = '#1f1225';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(count, x + barWidth/2, y - 6);
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '10px sans-serif';
+    const label = name.length > 8 ? name.substring(0,7) + '..' : name;
+    ctx.fillText(label, x + barWidth/2, h - 8);
+  });
+}
+
+function renderWeekDayChart() {
+  const canvas = document.getElementById('chartWeekDays');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.offsetWidth * dpr;
+  canvas.height = 250 * dpr;
+  ctx.scale(dpr, dpr);
+  const w = canvas.offsetWidth;
+  const h = 250;
+  ctx.clearRect(0, 0, w, h);
+
+  const dayNames = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const counts = [0,0,0,0,0,0,0];
+  state.bookings.filter(b => b.status !== 'cancelled').forEach(b => {
+    const d = new Date(b.date + 'T00:00:00').getDay();
+    counts[d]++;
+  });
+
+  const maxVal = Math.max(...counts, 1);
+  const barWidth = Math.min(40, (w - 60) / 7 - 8);
+  const startX = (w - 7 * (barWidth + 8)) / 2;
+  const chartH = h - 60;
+  const colors = ['#ef4444','#be185d','#f472b6','#fbbf24','#10b981','#3b82f6','#8b5cf6'];
+
+  counts.forEach((count, i) => {
+    const x = startX + i * (barWidth + 8);
+    const barH = (count / maxVal) * chartH;
+    const y = chartH - barH + 10;
+    ctx.fillStyle = colors[i];
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, barWidth, barH || 2, 6);
+    else ctx.rect(x, y, barWidth, barH || 2);
+    ctx.fill();
+    ctx.fillStyle = '#1f1225';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    if (count > 0) ctx.fillText(count, x + barWidth/2, y - 6);
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '11px sans-serif';
+    ctx.fillText(dayNames[i], x + barWidth/2, h - 8);
+  });
+}
+
+function renderMonthlyChart() {
+  const canvas = document.getElementById('chartMonthly');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.offsetWidth * dpr;
+  canvas.height = 250 * dpr;
+  ctx.scale(dpr, dpr);
+  const w = canvas.offsetWidth;
+  const h = 250;
+  ctx.clearRect(0, 0, w, h);
+
+  const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const counts = new Array(12).fill(0);
+  state.bookings.filter(b => b.status !== 'cancelled').forEach(b => {
+    const m = new Date(b.date + 'T00:00:00').getMonth();
+    counts[m]++;
+  });
+
+  const maxVal = Math.max(...counts, 1);
+  const barWidth = Math.min(24, (w - 40) / 12 - 4);
+  const startX = (w - 12 * (barWidth + 4)) / 2;
+  const chartH = h - 60;
+
+  counts.forEach((count, i) => {
+    const x = startX + i * (barWidth + 4);
+    const barH = (count / maxVal) * chartH;
+    const y = chartH - barH + 10;
+    const gradient = ctx.createLinearGradient(x, y, x, y + barH);
+    gradient.addColorStop(0, '#be185d');
+    gradient.addColorStop(1, '#f472b6');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, barWidth, barH || 2, 4);
+    else ctx.rect(x, y, barWidth, barH || 2);
+    ctx.fill();
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(months[i], x + barWidth/2, h - 8);
+  });
+}
+
+function renderCalendar() {
+  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  document.getElementById('calendarTitle').textContent = `${months[state.currentMonth]} ${state.currentYear}`;
+
+  const grid = document.getElementById('calendarGrid');
+  grid.innerHTML = '';
+
+  const dayNames = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  dayNames.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'day-name';
+    el.textContent = d;
+    grid.appendChild(el);
+  });
+
+  const firstDay = new Date(state.currentYear, state.currentMonth, 1).getDay();
+  const daysInMonth = new Date(state.currentYear, state.currentMonth + 1, 0).getDate();
+  const todayStr = getTodayStr();
+  const maxDateStr = getMaxDateStr();
+
+  for (let i = 0; i < firstDay; i++) {
+    const el = document.createElement('div');
+    el.className = 'day empty';
+    grid.appendChild(el);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${state.currentYear}-${(state.currentMonth+1).toString().padStart(2,'0')}-${d.toString().padStart(2,'0')}`;
+    const el = document.createElement('div');
+    el.className = 'day';
+    el.textContent = d;
+
+    const dateObj = new Date(state.currentYear, state.currentMonth, d);
+    const dayOfWeek = dateObj.getDay();
+
+    if (dateStr < todayStr) { el.classList.add('disabled'); }
+    else if (dateStr > maxDateStr) { el.classList.add('disabled'); }
+    else if (!state.settings.workingDays[dayOfWeek]) { el.classList.add('disabled'); }
+    else if (isDayBlocked(dateStr)) { el.classList.add('blocked'); }
+    else {
+      const hasApp = state.bookings.some(b => b.date === dateStr && b.status !== 'cancelled');
+      if (hasApp) el.classList.add('has-appointments');
+      if (dateStr === todayStr) el.classList.add('today');
+      if (state.selectedDate === dateStr) el.classList.add('selected');
+      el.onclick = () => selectDate(dateStr);
+    }
+    grid.appendChild(el);
+  }
+}
+
+function changeMonth(dir) {
+  state.currentMonth += dir;
+  if (state.currentMonth > 11) { state.currentMonth = 0; state.currentYear++; }
+  if (state.currentMonth < 0) { state.currentMonth = 11; state.currentYear--; }
+  state.selectedDate = null;
+  state.selectedTime = null;
+  document.getElementById('timeSlotsCard').style.display = 'none';
+  document.getElementById('bookingFormCard').style.display = 'none';
+  renderCalendar();
+}
+
+function isDayBlocked(dateStr) {
+  return state.blocks.some(b => b.type === 'full' && b.date === dateStr);
+}
+
+function isHourBlocked(dateStr, time) {
+  return state.blocks.some(b => {
+    if (b.type === 'full' && b.date === dateStr) return true;
+    if (b.type === 'hours' && b.date === dateStr) {
+      return time >= b.startTime && time < b.endTime;
+    }
+    return false;
+  });
+}
+
+function selectDate(dateStr) {
+  const maxDateStr = getMaxDateStr();
+  if (dateStr > maxDateStr) {
+    showToast('❌ No puedes reservar más allá de 45 días', 'error');
+    return;
+  }
+  
+  state.selectedDate = dateStr;
+  state.selectedTime = null;
+  renderCalendar();
+  renderTimeSlots();
+  document.getElementById('timeSlotsCard').style.display = 'block';
+  document.getElementById('bookingFormCard').style.display = 'none';
+  document.getElementById('selectedDateLabel').textContent = formatDateShort(dateStr);
+  setTimeout(() => {
+    document.getElementById('timeSlotsCard').scrollIntoView({behavior:'smooth', block:'center'});
+  }, 100);
+}
+
+function renderTimeSlots() {
+  const grid = document.getElementById('timeSlotsGrid');
+  grid.innerHTML = '';
+
+  const [openH, openM] = state.settings.openTime.split(':').map(Number);
+  const [closeH, closeM] = state.settings.closeTime.split(':').map(Number);
+  const duration = state.settings.duration;
+
+  let currentMinutes = openH * 60 + openM;
+  const closeMinutes = closeH * 60 + closeM;
+
+  while (currentMinutes + duration <= closeMinutes) {
+    const h = Math.floor(currentMinutes / 60);
+    const m = currentMinutes % 60;
+    const timeStr = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+
+    const el = document.createElement('div');
+    el.className = 'time-slot';
+    el.textContent = timeStr;
+
+    const isBooked = state.bookings.some(b => b.date === state.selectedDate && b.time === timeStr && b.status !== 'cancelled');
+    const isBlocked = isHourBlocked(state.selectedDate, timeStr);
+    const isPast = state.selectedDate === getTodayStr() && currentMinutes <= (new Date().getHours() * 60 + new Date().getMinutes());
+
+    if (isBooked) {
+      el.classList.add('booked');
+      el.title = 'Ya reservado';
+    } else if (isBlocked || isPast) {
+      el.classList.add('blocked-slot');
+    } else {
+      if (state.selectedTime === timeStr) el.classList.add('selected');
+      el.onclick = () => selectTime(timeStr);
+    }
+
+    grid.appendChild(el);
+    currentMinutes += duration;
+  }
+}
+
+function selectTime(timeStr) {
+  state.selectedTime = timeStr;
+  renderTimeSlots();
+  document.getElementById('bookingFormCard').style.display = 'block';
+  updateBookingSummary();
+  setTimeout(() => {
+    document.getElementById('bookingFormCard').scrollIntoView({behavior:'smooth', block:'center'});
+  }, 100);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const serviceSelect = document.getElementById('clientService');
+  if (serviceSelect) {
+    serviceSelect.addEventListener('change', function() {
+      document.getElementById('otherServiceGroup').style.display = this.value === 'Otros' ? 'block' : 'none';
+      updateBookingSummary();
+    });
+  }
+  ['clientName','clientPhone'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateBookingSummary);
+  });
+});
+
+function updateBookingSummary() {
+  const summary = document.getElementById('bookingSummary');
+  const name = document.getElementById('clientName').value;
+  const phone = document.getElementById('clientPhone').value;
+  let service = document.getElementById('clientService').value;
+  if (service === 'Otros') service = document.getElementById('clientOtherService').value || 'Otros';
+
+  if (!state.selectedDate || !state.selectedTime) {
+    summary.innerHTML = '<p class="text-sm text-muted">Selecciona fecha y hora primero</p>';
+    return;
+  }
+
+  summary.innerHTML = `
+    <div style="font-size:14px;">
+      <div class="bi-detail">📅 <strong>${formatDate(state.selectedDate)}</strong></div>
+      <div class="bi-detail">🕐 <strong>${state.selectedTime} h</strong></div>
+      ${name ? `<div class="bi-detail">👤 ${name}</div>` : ''}
+      ${phone ? `<div class="bi-detail"> ${phone}</div>` : ''}
+      ${service ? `<div class="bi-detail">💇‍♀️ ${service}</div>` : ''}
+    </div>
+  `;
+}
+
+async function submitBooking() {
+  const name = document.getElementById('clientName').value.trim();
+  const phone = document.getElementById('clientPhone').value.trim();
+  let service = document.getElementById('clientService').value;
+  const otherService = document.getElementById('clientOtherService').value.trim();
+
+  if (!name) { showToast('Introduce tu nombre completo','error'); return; }
+  if (!phone) { showToast('Introduce tu teléfono','error'); return; }
+  if (!service) { showToast('Selecciona un servicio','error'); return; }
+  if (service === 'Otros' && !otherService) { showToast('Especifica el servicio','error'); return; }
+  if (service === 'Otros') service = otherService;
+  if (!state.selectedDate || !state.selectedTime) { showToast('Selecciona fecha y hora','error'); return; }
+
+  const maxDateStr = getMaxDateStr();
+  if (state.selectedDate > maxDateStr) {
+    showToast('❌ No puedes reservar más allá de 45 días', 'error');
+    return;
+  }
+
+  const duplicate = state.bookings.find(b =>
+    b.date === state.selectedDate && b.time === state.selectedTime && b.status !== 'cancelled'
+  );
+  if (duplicate) {
+    showToast('Esta hora ya está reservada. Selecciona otra.','error');
+    return;
+  }
+
+  const booking = {
+    id: generateId(), name, phone, service,
+    date: state.selectedDate, time: state.selectedTime,
+    status: 'pending', createdAt: new Date().toISOString()
+  };
+
+  state.bookings.push(booking);
+  saveLocalData();
+  await saveCitaToSupabase(booking);
+  addNotification(' Nueva Reserva', `${name} ha reservado ${service} el ${formatDateShort(state.selectedDate)} a las ${state.selectedTime}`, 'new');
+  
+  showBookingConfirmation(booking);
+
+  const enviadoTelegram = await enviarCitaATelegram(name, formatDate(state.selectedDate), state.selectedTime, service, phone);
+  if (enviadoTelegram) {
+    showToast('✅ ¡Cita enviada! Te confirmaremos pronto.', 'success');
+  }
+
+  try { playNotificationSound(); } catch(e) {}
+
+  document.getElementById('clientName').value = '';
+  document.getElementById('clientPhone').value = '';
+  document.getElementById('clientService').value = '';
+  document.getElementById('clientOtherService').value = '';
+  document.getElementById('otherServiceGroup').style.display = 'none';
+  state.selectedDate = null;
+  state.selectedTime = null;
+  document.getElementById('timeSlotsCard').style.display = 'none';
+  document.getElementById('bookingFormCard').style.display = 'none';
+  renderCalendar();
+}
+
+function showBookingConfirmation(booking) {
+  const content = document.getElementById('bookingConfirmContent');
+  content.innerHTML = `
+    <svg class="success-check" viewBox="0 0 80 80">
+      <circle cx="40" cy="40" r="38"/>
+      <path d="M24 42 L35 53 L56 30"/>
+    </svg>
+    <h2 style="color:var(--success);margin-bottom:8px;">¡Cita Registrada!</h2>
+    <p class="text-sm text-muted mb-12">Tu solicitud ha sido recibida. Espera la confirmación.</p>
+    <div class="card" style="background:#f0fdf4;border:2px solid #86efac;text-align:left;">
+      <div class="bi-detail"> <strong>${formatDate(booking.date)}</strong></div>
+      <div class="bi-detail">🕐 <strong>${booking.time} h</strong></div>
+      <div class="bi-detail">👤 <strong>${booking.name}</strong></div>
+      <div class="bi-detail"> <strong>${booking.phone}</strong></div>
+      <div class="bi-detail">💇‍♀️ <strong>${booking.service}</strong></div>
+      <div class="bi-detail" style="margin-top:8px;">
+        <span class="badge badge-pending">⏳ Pendiente de Confirmación</span>
+      </div>
+    </div>
+    <p class="text-sm text-muted" style="margin-top:12px;">📌 Código: <strong>${booking.id.toUpperCase()}</strong></p>
+    <button class="btn btn-primary mt-12" onclick="closeBookingConfirm()">Entendido </button>
+  `;
+  document.getElementById('bookingConfirmOverlay').classList.add('show');
+}
+
+function closeBookingConfirm() {
+  document.getElementById('bookingConfirmOverlay').classList.remove('show');
+}
+
+function renderMyBookings() {
+  const container = document.getElementById('myBookingsList');
+  const search = (document.getElementById('searchMyBookings').value || '').toLowerCase();
+
+  let bookings = [...state.bookings].sort((a,b) => {
+    const da = new Date(a.date + 'T' + a.time);
+    const db = new Date(b.date + 'T' + b.time);
+    return db - da;
+  });
+
+  if (search) {
+    bookings = bookings.filter(b =>
+      b.name.toLowerCase().includes(search) || b.phone.includes(search)
+    );
+  }
+
+  if (bookings.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon"></div><p>No hay citas registradas</p></div>`;
+    return;
+  }
+
+  container.innerHTML = bookings.map(b => {
+    const statusBadge = b.status === 'confirmed' ? '<span class="badge badge-confirmed">✅ Confirmada</span>'
+      : b.status === 'cancelled' ? '<span class="badge badge-cancelled">❌ Cancelada</span>'
+      : '<span class="badge badge-pending">⏳ Pendiente</span>';
+    const isPast = b.date < getTodayStr();
+
+    return `
+      <div class="booking-item" style="border-left-color:${b.status==='confirmed'?'var(--success)':b.status==='cancelled'?'var(--danger)':'var(--warning)'};${isPast?'opacity:0.6;':''}">
+        <div class="bi-header">
+          <div class="bi-name">${b.name}</div>
+          ${statusBadge}
+        </div>
+        <div class="bi-detail">📅 ${formatDate(b.date)}</div>
+        <div class="bi-detail">🕐 ${b.time} h</div>
+        <div class="bi-detail">📱 ${b.phone}</div>
+        <div class="bi-detail">💇‍♀️ <span class="service-tag">${b.service}</span></div>
+        <div class="bi-detail" style="margin-top:4px;">📌 Código: ${b.id.toUpperCase()}</div>
+        ${b.status === 'pending' && !isPast ? `
+          <div class="bi-actions">
+            <button class="btn btn-sm btn-danger" onclick="cancelMyBooking('${b.id}')">Cancelar Cita</button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+async function cancelMyBooking(id) {
+  if (!confirm('¿Seguro que deseas cancelar esta cita?')) return;
+  const booking = state.bookings.find(b => b.id === id);
+  if (booking) {
+    booking.status = 'cancelled';
+    saveLocalData();
+    await updateCitaInSupabase(booking);
+    addNotification('❌ Cita Cancelada', `${booking.name} canceló su cita del ${formatDateShort(booking.date)} a las ${booking.time}`, 'cancel');
+    renderMyBookings();
+    showToast('Cita cancelada correctamente', 'warning');
+  }
+}
+
+function toggleAdmin() {
+  if (state.isAdmin) {
+    state.isAdmin = false;
+    document.getElementById('navAdmin').style.display = 'none';
+    document.getElementById('adminToggleBtn').classList.remove('admin-active');
+    document.getElementById('adminBanner').style.display = 'flex';
+    showPage('pageHome', document.getElementById('navHome'));
+    showToast('Sesión de administrador cerrada', 'info');
+  } else {
+    document.getElementById('adminLoginOverlay').classList.add('show');
+    document.getElementById('adminPinInput').value = '';
+    document.getElementById('pinError').style.display = 'none';
+    setTimeout(() => document.getElementById('adminPinInput').focus(), 100);
+  }
+}
+
+function checkPin() {
+  const pin = document.getElementById('adminPinInput').value;
+  if (pin === state.settings.pin) {
+    state.isAdmin = true;
+    document.getElementById('adminLoginOverlay').classList.remove('show');
+    document.getElementById('navAdmin').style.display = 'flex';
+    document.getElementById('adminToggleBtn').classList.add('admin-active');
+    document.getElementById('adminBanner').style.display = 'none';
+    showPage('pageAdminDash', document.getElementById('navAdmin'));
+    showToast('Bienvenida, Administradora 👑', 'success');
+  } else if (pin.length >= 4) {
+    document.getElementById('pinError').style.display = 'block';
+    document.getElementById('adminPinInput').style.animation = 'shake 0.3s';
+    setTimeout(() => document.getElementById('adminPinInput').style.animation = '', 300);
+  }
+}
+
+function closeAdminLogin() {
+  document.getElementById('adminLoginOverlay').classList.remove('show');
+}
+
+function renderStats() {
+  const today = getTodayStr();
+  const totalBookings = state.bookings.filter(b => b.status !== 'cancelled').length;
+  const pending = state.bookings.filter(b => b.status === 'pending').length;
+  const confirmed = state.bookings.filter(b => b.status === 'confirmed').length;
+  const todayBookings = state.bookings.filter(b => b.date === today && b.status !== 'cancelled').length;
+
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-value">${totalBookings}</div><div class="stat-label">Total Citas</div></div>
+    <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-value">${pending}</div><div class="stat-label">Pendientes</div></div>
+    <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value">${confirmed}</div><div class="stat-label">Confirmadas</div></div>
+    <div class="stat-card"><div class="stat-icon">📆</div><div class="stat-value">${todayBookings}</div><div class="stat-label">Hoy</div></div>
+  `;
+}
+
+function filterAdminBookings(filter) {
+  state.adminFilter = filter;
+  ['filterAll','filterPending','filterConfirmed','filterCancelled'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.opacity = '0.6';
+  });
+  const btnId = 'filter' + filter.charAt(0).toUpperCase() + filter.slice(1);
+  const btn = document.getElementById(btnId);
+  if (btn) btn.style.opacity = '1';
+  renderAdminBookings();
+}
+
+function renderAdminBookings() {
+  const container = document.getElementById('adminBookingsList');
+  if (!container) return;
+  const searchInput = document.getElementById('searchAdminBookings');
+  const search = searchInput ? searchInput.value.toLowerCase() : '';
+
+  let bookings = [...state.bookings].sort((a,b) => {
+    const da = new Date(a.date + 'T' + a.time);
+    const db = new Date(b.date + 'T' + b.time);
+    return da - db;
+  });
+
+  if (state.adminFilter !== 'all') {
+    bookings = bookings.filter(b => b.status === state.adminFilter);
+  }
+  if (search) {
+    bookings = bookings.filter(b =>
+      b.name.toLowerCase().includes(search) || b.phone.includes(search) || b.service.toLowerCase().includes(search)
+    );
+  }
+
+  if (bookings.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon"></div><p>No hay reservas ${state.adminFilter !== 'all' ? 'con este filtro' : ''}</p></div>`;
+    return;
+  }
+
+  container.innerHTML = bookings.map(b => {
+    const statusBadge = b.status === 'confirmed' ? '<span class="badge badge-confirmed">✅ Confirmada</span>'
+      : b.status === 'cancelled' ? '<span class="badge badge-cancelled"> Cancelada</span>'
+      : '<span class="badge badge-pending">⏳ Pendiente</span>';
+
+    return `
+      <div class="booking-item" onclick="showBookingDetail('${b.id}')" style="cursor:pointer;">
+        <div class="bi-header">
+          <div class="bi-name">${b.name}</div>
+          ${statusBadge}
+        </div>
+        <div class="bi-detail">📅 ${formatDate(b.date)}</div>
+        <div class="bi-detail">🕐 ${b.time} h</div>
+        <div class="bi-detail">📱 ${b.phone}</div>
+        <div class="bi-detail">‍♀️ <span class="service-tag">${b.service}</span></div>
+        <div class="bi-actions" onclick="event.stopPropagation();">
+          ${b.status === 'pending' ? `
+            <button class="btn btn-sm btn-success" onclick="updateBookingStatus('${b.id}','confirmed')">✅</button>
+            <button class="btn btn-sm btn-danger" onclick="updateBookingStatus('${b.id}','cancelled')"></button>
+          ` : ''}
+          ${b.status === 'confirmed' ? `
+            <button class="btn btn-sm btn-danger" onclick="updateBookingStatus('${b.id}','cancelled')">❌</button>
+          ` : ''}
+          <button class="btn btn-sm btn-info" onclick="editBooking('${b.id}')">✏️</button>
+          <button class="btn btn-sm btn-outline" onclick="deleteBooking('${b.id}')">🗑️</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function updateBookingStatus(id, status) {
+  const booking = state.bookings.find(b => b.id === id);
+  if (booking) {
+    booking.status = status;
+    saveLocalData();
+    await updateCitaInSupabase(booking);
+    const statusText = status === 'confirmed' ? 'confirmada ✅' : 'cancelada ❌';
+    addNotification(`Cita ${statusText}`, `La cita de ${booking.name} (${formatDateShort(booking.date)} ${booking.time}) ha sido ${statusText}`, status === 'confirmed' ? 'confirm' : 'cancel');
+    renderAdminBookings();
+    renderStats();
+    showToast(`Cita ${statusText}`, status === 'confirmed' ? 'success' : 'warning');
+  }
+}
+
+async function deleteBooking(id) {
+  if (!confirm('¿Eliminar permanentemente esta reserva?')) return;
+  state.bookings = state.bookings.filter(b => b.id !== id);
+  saveLocalData();
+  await deleteCitaFromSupabase(id);
+  renderAdminBookings();
+  renderStats();
+  showToast('Reserva eliminada', 'warning');
+}
+
+function editBooking(id) {
+  const booking = state.bookings.find(b => b.id === id);
+  if (!booking) return;
+  
+  state.editingBookingId = id;
+  
+  document.getElementById('editName').value = booking.name;
+  document.getElementById('editPhone').value = booking.phone;
+  document.getElementById('editService').value = booking.service;
+  document.getElementById('editDate').value = booking.date;
+  document.getElementById('editTime').value = booking.time;
+  document.getElementById('editStatus').value = booking.status;
+  
+  document.getElementById('editBookingModal').classList.add('show');
+}
+
+async function saveEditBooking() {
+  const id = state.editingBookingId;
+  if (!id) return;
+  
+  const booking = state.bookings.find(b => b.id === id);
+  if (!booking) return;
+  
+  const newName = document.getElementById('editName').value.trim();
+  const newPhone = document.getElementById('editPhone').value.trim();
+  const newService = document.getElementById('editService').value;
+  const newDate = document.getElementById('editDate').value;
+  const newTime = document.getElementById('editTime').value;
+  const newStatus = document.getElementById('editStatus').value;
+  
+  if (!newName || !newPhone || !newDate || !newTime) {
+    showToast('❌ Completa todos los campos', 'error');
+    return;
+  }
+  
+  booking.name = newName;
+  booking.phone = newPhone;
+  booking.service = newService;
+  booking.date = newDate;
+  booking.time = newTime;
+  booking.status = newStatus;
+  
+  saveLocalData();
+  await updateCitaInSupabase(booking);
+  
+  closeModal('editBookingModal');
+  renderAdminBookings();
+  renderCalendar();
+  showToast('✅ Reserva actualizada', 'success');
+  
+  state.editingBookingId = null;
+}
+
+function showBookingDetail(id) {
+  const b = state.bookings.find(x => x.id === id);
+  if (!b) return;
+  const content = document.getElementById('bookingDetailContent');
+  content.innerHTML = `
+    <div class="modal-handle"></div>
+    <div class="card-title">📋 Detalle de la Reserva</div>
+    <div class="booking-item" style="border-left-color:var(--primary);">
+      <div class="bi-name" style="font-size:18px;margin-bottom:12px;">${b.name}</div>
+      <div class="bi-detail">📅 ${formatDate(b.date)}</div>
+      <div class="bi-detail"> ${b.time} h</div>
+      <div class="bi-detail">📱 <a href="tel:${b.phone}" style="color:var(--primary);text-decoration:none;font-weight:700;">${b.phone}</a></div>
+      <div class="bi-detail">💇‍♀️ <span class="service-tag">${b.service}</span></div>
+      <div class="bi-detail"> Código: ${b.id.toUpperCase()}</div>
+      <div class="bi-detail">📅 Creada: ${new Date(b.createdAt).toLocaleString('es')}</div>
+      <div style="margin-top:8px;">
+        ${b.status === 'confirmed' ? '<span class="badge badge-confirmed">✅ Confirmada</span>'
+          : b.status === 'cancelled' ? '<span class="badge badge-cancelled">❌ Cancelada</span>'
+          : '<span class="badge badge-pending">⏳ Pendiente</span>'}
+      </div>
+    </div>
+    <div class="bi-actions" style="margin-top:16px;">
+      ${b.status === 'pending' ? `
+        <button class="btn btn-sm btn-success" onclick="updateBookingStatus('${b.id}','confirmed');closeModal('bookingDetailModal');">✅ Confirmar</button>
+        <button class="btn btn-sm btn-danger" onclick="updateBookingStatus('${b.id}','cancelled');closeModal('bookingDetailModal');">❌ Cancelar</button>
+      ` : ''}
+      <button class="btn btn-sm btn-info" onclick="closeModal('bookingDetailModal');editBooking('${b.id}');">️ Editar</button>
+    </div>
+    <button class="btn btn-outline mt-12" onclick="closeModal('bookingDetailModal')">Cerrar</button>
+  `;
+  document.getElementById('bookingDetailModal').classList.add('show');
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+function renderBlocks() {
+  populateHourSelects();
+  const container = document.getElementById('blocksList');
+  if (!container) return;
+  const blocks = [...state.blocks].sort((a,b) => a.date.localeCompare(b.date));
+
+  if (blocks.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">✅</div><p>No hay bloqueos activos</p></div>`;
+    return;
+  }
+
+  container.innerHTML = blocks.map(b => `
+    <div class="block-item">
+      <div style="flex:1;">
+        <div class="block-info">${b.type === 'full' ? '' : '⏰'} ${formatDateShort(b.date)}</div>
+        <div class="block-sub">${b.type === 'full' ? 'Día completo' + (b.reason ? ' - ' + b.reason : '') : `${b.startTime} - ${b.endTime}`}</div>
+      </div>
+      <button class="btn btn-sm btn-danger" onclick="removeBlock('${b.id}')">🗑️</button>
+    </div>
+  `).join('');
+}
+
+function populateHourSelects() {
+  const startSel = document.getElementById('blockHourStart');
+  const endSel = document.getElementById('blockHourEnd');
+  if (!startSel || !endSel) return;
+  if (startSel.options.length > 0) return;
+
+  const [openH, openM] = state.settings.openTime.split(':').map(Number);
+  const [closeH, closeM] = state.settings.closeTime.split(':').map(Number);
+  let mins = openH * 60 + openM;
+  const close = closeH * 60 + closeM;
+
+  while (mins <= close) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    const val = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+    startSel.add(new Option(val, val));
+    endSel.add(new Option(val, val));
+    mins += 15;
+  }
+}
+
+async function blockFullDay() {
+  const date = document.getElementById('blockDate').value;
+  const reason = document.getElementById('blockReason').value.trim();
+  if (!date) { showToast('Selecciona una fecha', 'error'); return; }
+  if (date < getTodayStr()) { showToast('No puedes bloquear fechas pasadas', 'error'); return; }
+
+  const block = { id: generateId(), type: 'full', date, reason };
+  state.blocks.push(block);
+  saveLocalData();
+  await saveBloqueoToSupabase(block);
+  document.getElementById('blockDate').value = '';
+  document.getElementById('blockReason').value = '';
+  renderBlocks();
+  renderCalendar();
+  showToast('Día bloqueado correctamente', 'success');
+}
+
+async function blockSpecificHours() {
+  const date = document.getElementById('blockHourDate').value;
+  const startTime = document.getElementById('blockHourStart').value;
+  const endTime = document.getElementById('blockHourEnd').value;
+  if (!date) { showToast('Selecciona una fecha', 'error'); return; }
+  if (startTime >= endTime) { showToast('La hora de inicio debe ser menor que la de fin', 'error'); return; }
+
+  const block = { id: generateId(), type: 'hours', date, startTime, endTime };
+  state.blocks.push(block);
+  saveLocalData();
+  await saveBloqueoToSupabase(block);
+  renderBlocks();
+  renderCalendar();
+  showToast('Horas bloqueadas correctamente', 'success');
+}
+
+async function removeBlock(id) {
+  if (!confirm('¿Desbloquear esta fecha/hora?')) return;
+  state.blocks = state.blocks.filter(b => b.id !== id);
+  saveLocalData();
+  await deleteBloqueoFromSupabase(id);
+  renderBlocks();
+  renderCalendar();
+  showToast('🔓 Bloqueo eliminado', 'success');
+}
+
+function renderSettings() {
+  const container = document.getElementById('workingDaysSettings');
+  if (!container) return;
+  const days = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+
+  container.innerHTML = days.map((day, i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f3f4f6;">
+      <span style="font-weight:600;font-size:14px;">${day}</span>
+      <label style="position:relative;display:inline-block;width:48px;height:26px;cursor:pointer;">
+        <input type="checkbox" id="workDay${i}" ${state.settings.workingDays[i]?'checked':''} style="opacity:0;width:0;height:0;">
+        <span class="toggle-bg" style="position:absolute;inset:0;background:${state.settings.workingDays[i]?'var(--primary)':'#d1d5db'};border-radius:13px;transition:0.3s;"></span>
+        <span class="toggle-thumb" style="position:absolute;left:${state.settings.workingDays[i]?'25px':'3px'};top:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></span>
+      </label>
+    </div>
+  `).join('');
+
+  document.getElementById('settingOpenTime').value = state.settings.openTime;
+  document.getElementById('settingCloseTime').value = state.settings.closeTime;
+  document.getElementById('settingDuration').value = state.settings.duration;
+}
+
+async function saveSettings() {
+  const workingDays = {};
+  for (let i = 0; i < 7; i++) {
+    workingDays[i] = document.getElementById(`workDay${i}`).checked;
+  }
+  state.settings.workingDays = workingDays;
+  state.settings.openTime = document.getElementById('settingOpenTime').value;
+  state.settings.closeTime = document.getElementById('settingCloseTime').value;
+  state.settings.duration = parseInt(document.getElementById('settingDuration').value) || 45;
+  saveLocalData();
+  await saveSettingsToSupabase();
+  renderCalendar();
+  showToast('Configuración guardada ✅', 'success');
+}
+
+async function changePin() {
+  const current = document.getElementById('currentPin').value;
+  const newP = document.getElementById('newPin').value;
+  if (current !== state.settings.pin) { showToast('PIN actual incorrecto', 'error'); return; }
+  if (newP.length < 4) { showToast('El nuevo PIN debe tener al menos 4 dígitos', 'error'); return; }
+  state.settings.pin = newP;
+  saveLocalData();
+  await saveSettingsToSupabase();
+  document.getElementById('currentPin').value = '';
+  document.getElementById('newPin').value = '';
+  showToast('PIN cambiado correctamente 🔑', 'success');
+}
+
+function exportData() {
+  const data = JSON.stringify({
+    bookings: state.bookings, blocks: state.blocks,
+    settings: state.settings, notifications: state.notifications,
+    exportDate: new Date().toISOString()
+  }, null, 2);
+  const blob = new Blob([data], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `cortes_maite_backup_${getTodayStr()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Copia descargada 📤', 'success');
+}
+
+async function importData() {
+  const file = document.getElementById('importFile').files[0];
+  if (!file) { showToast('Selecciona un archivo', 'error'); return; }
+  if (!confirm('⚠️ Esto reemplazará todos los datos actuales. ¿Continuar?')) return;
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (supabaseClient) await clearAllFromSupabase();
+      state.bookings = [];
+      state.blocks = [];
+      state.notifications = [];
+      
+      if (data.bookings) {
+        for (const b of data.bookings) {
+          state.bookings.push(b);
+          await saveCitaToSupabase(b);
+        }
+      }
+      if (data.blocks) {
+        for (const b of data.blocks) {
+          state.blocks.push(b);
+          await saveBloqueoToSupabase(b);
+        }
+      }
+      if (data.settings) {
+        state.settings = {...DEFAULT_SETTINGS, ...data.settings};
+        await saveSettingsToSupabase();
+      }
+      saveLocalData();
+      showToast('Datos restaurados correctamente 📥', 'success');
+      refreshAllViews();
+    } catch(err) {
+      showToast('Error: archivo inválido', 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+async function clearAllData() {
+  if (!confirm('⚠️ ¿BORRAR TODOS LOS DATOS? Esta acción no se puede deshacer.')) return;
+  if (!confirm('⚠️ ¿ESTÁS COMPLETAMENTE SEGURA? Se borrarán todas las citas, bloqueos y configuraciones.')) return;
+  
+  if (supabaseClient) await clearAllFromSupabase();
+  state.bookings = [];
+  state.blocks = [];
+  state.notifications = [];
+  state.settings = {...DEFAULT_SETTINGS};
+  saveLocalData();
+  await saveSettingsToSupabase();
+  showToast('Todos los datos han sido eliminados', 'warning');
+  refreshAllViews();
+}
+
+function showNotifications() {
+  const container = document.getElementById('notifList');
+  if (state.notifications.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔔</div><p>No hay notificaciones</p></div>';
+  } else {
+    container.innerHTML = state.notifications.slice(0, 30).map(n => {
+      const icons = {new:'🆕', confirm:'✅', cancel:'❌', info:'ℹ️'};
+      const time = new Date(n.time);
+      const timeStr = time.toLocaleDateString('es') + ' ' + time.toLocaleTimeString('es', {hour:'2-digit',minute:'2-digit'});
+      return `
+        <div style="padding:12px;border-bottom:1px solid #f3f4f6;${n.read?'opacity:0.6':''}">
+          <div style="font-weight:700;font-size:14px;">${icons[n.type]||'ℹ️'} ${n.title}</div>
+          <div style="font-size:13px;color:var(--text-light);margin-top:4px;">${n.message}</div>
+          <div style="font-size:11px;color:#9ca3af;margin-top:4px;">${timeStr}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  state.notifications.forEach(n => n.read = true);
+  saveLocalData();
+  markNotifsReadInSupabase();
+  updateNotifDot();
+  document.getElementById('notifModal').classList.add('show');
+}
+
+function closeNotifModal() {
+  document.getElementById('notifModal').classList.remove('show');
+}
+
+function playNotificationSound() {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+    osc.frequency.setValueAtTime(1000, audioCtx.currentTime + 0.1);
+    osc.frequency.setValueAtTime(1200, audioCtx.currentTime + 0.2);
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.4);
+  } catch(e) {}
+}
+
+function init() {
+  loadLocalData();
+  
+  setTimeout(() => {
+    document.getElementById('splash').classList.add('hide');
+    document.getElementById('app').style.display = 'block';
+    setTimeout(() => {
+      const splash = document.getElementById('splash');
+      if (splash) splash.remove();
+    }, 400);
+    
+    renderCalendar();
+    updateNotifDot();
+    
+    const today = getTodayStr();
+    const blockDate = document.getElementById('blockDate');
+    const blockHourDate = document.getElementById('blockHourDate');
+    if (blockDate) blockDate.min = today;
+    if (blockHourDate) blockHourDate.min = today;
+    
+    const maxDateStr = getMaxDateStr();
+    if (blockDate) blockDate.max = maxDateStr;
+    if (blockHourDate) blockHourDate.max = maxDateStr;
+    
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', function(e) {
+        if (e.target === this) this.classList.remove('show');
+      });
+    });
+    
+    setTimeout(() => {
+      initSupabase();
+    }, 300);
+    
+  }, 600);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
