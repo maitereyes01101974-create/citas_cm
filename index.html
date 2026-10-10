@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Peluquería Maité - Tu corte al instante</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* ... (mismos estilos de antes, no los repito para no alargar) ... */
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(180deg, #fce4ec 0%, #f8bbd0 100%); min-height: 100vh; padding-bottom: 70px; }
+        .header { background: linear-gradient(135deg, #8FA89B 0%, #6B8E7B 100%); color: white; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        .header-logo { display: flex; align-items: center; gap: 12px; }
+        .header-logo svg { width: 50px; height: 50px; flex-shrink: 0; }
+        .header-brand { display: flex; flex-direction: column; }
+        .header-title { font-family: Georgia, 'Times New Roman', serif; font-size: 18px; font-weight: bold; letter-spacing: 2px; line-height: 1.1; }
+        .header-slogan { font-family: Georgia, serif; font-size: 11px; font-style: italic; opacity: 0.9; letter-spacing: 1px; }
+        .header-status { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+        .status-dot { width: 10px; height: 10px; background: #4caf50; border-radius: 50%; animation: pulse 2s infinite; }
+        .status-dot.offline { background: #e53935; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .admin-banner { background: linear-gradient(135deg, #6B8E7B 0%, #8FA89B 100%); color: white; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+        .admin-banner-content { display: flex; align-items: center; gap: 10px; }
+        .admin-banner-text { font-size: 15px; }
+        .sync-banner { padding: 10px 15px; margin: 15px; border-radius: 10px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+        .sync-banner.ok { background: #e8f5e9; border: 2px solid #4caf50; color: #2e7d32; }
+        .sync-banner.error { background: #ffebee; border: 2px solid #e53935; color: #c62828; }
+        .sync-banner.syncing { background: #fff3e0; border: 2px solid #ff9800; color: #e65100; }
+        .calendar-card { background: white; border-radius: 20px; padding: 20px; margin: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .calendar-title { font-family: Georgia, serif; font-size: 18px; font-weight: bold; color: #6B8E7B; display: flex; align-items: center; gap: 8px; }
+        .calendar-nav { display: flex; gap: 10px; }
+        .calendar-nav-btn { width: 40px; height: 40px; border-radius: 50%; border: none; background: #6B8E7B; color: white; font-size: 18px; cursor: pointer; }
+        .calendar-month { text-align: center; font-family: Georgia, serif; font-size: 20px; font-weight: bold; color: #6B8E7B; margin-bottom: 15px; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+        .calendar-day-header { text-align: center; font-size: 12px; color: #666; font-weight: 600; padding: 8px 0; }
+        .calendar-day { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 12px; cursor: pointer; position: relative; font-size: 16px; }
+        .calendar-day:hover { background: #e8f0eb; }
+        .calendar-day.disabled { color: #ccc; cursor: not-allowed; }
+        .calendar-day.selected { background: #8FA89B; color: white; font-weight: bold; }
+        .calendar-day.has-appointments::after { content: ''; width: 6px; height: 6px; background: #6B8E7B; border-radius: 50%; position: absolute; bottom: 4px; }
+        .horarios-card { background: white; border-radius: 20px; padding: 20px; margin: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: none; }
+        .horarios-card.visible { display: block; }
+        .horarios-title { font-family: Georgia, serif; font-size: 18px; font-weight: bold; color: #6B8E7B; margin-bottom: 15px; }
+        .horarios-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .horario-slot { padding: 14px 10px; border-radius: 10px; text-align: center; font-weight: 600; font-size: 14px; cursor: pointer; border: 2px solid transparent; }
+        .horario-slot.disponible { background: white; color: #2d5a3d; border-color: #6B8E7B; }
+        .horario-slot.disponible.selected { background: #6B8E7B; color: white; }
+        .horario-slot.con-corte { background: white; color: #e65100; border-color: #ff9800; border-style: dashed; }
+        .horario-slot.con-corte.selected { background: #ff9800; color: white; }
+        .horario-slot.parcial { background: #fce4ec; color: #880e4f; border-color: #e91e63; }
+        .horario-slot.ocupado { background: #ffebee; color: #c62828; border-color: #e53935; cursor: not-allowed; text-decoration: line-through; }
+        .horario-slot .slot-label { font-size: 10px; display: block; margin-top: 3px; }
+        .admin-panel { display: none; }
+        .admin-panel.active { display: block; }
+        .tabs-container { background: #e8f0eb; padding: 10px 15px; display: flex; gap: 8px; overflow-x: auto; margin-bottom: 15px; }
+        .tab { padding: 10px 18px; border-radius: 25px; border: none; background: white; color: #666; font-size: 14px; font-weight: 600; cursor: pointer; }
+        .tab.active { background: #6B8E7B; color: white; }
+        .admin-section { display: none; padding: 0 15px; }
+        .admin-section.active { display: block; }
+        .section-card { background: white; border-radius: 15px; padding: 20px; margin-bottom: 15px; }
+        .section-title { font-family: Georgia, serif; font-size: 18px; font-weight: bold; color: #2d5a3d; margin-bottom: 15px; }
+        .reservation-item { background: white; border-radius: 12px; padding: 15px; margin-bottom: 12px; border-left: 4px solid #6B8E7B; }
+        .reservation-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .reservation-name { font-weight: bold; font-size: 15px; }
+        .reservation-details { font-size: 13px; color: #666; margin: 10px 0; }
+        .action-buttons { display: flex; gap: 10px; margin-top: 12px; }
+        .action-buttons button { flex: 1; padding: 10px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .btn-approve { background: #6B8E7B; color: white; }
+        .btn-reject { background: #e53935; color: white; }
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; display: flex; justify-content: space-around; padding: 10px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 1000; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; padding: 5px 20px; color: #999; font-size: 12px; }
+        .nav-item.active { color: #6B8E7B; }
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 2000; align-items: center; justify-content: center; padding: 20px; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; padding: 30px; border-radius: 20px; max-width: 400px; width: 90%; }
+        .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; margin: 5px; }
+        .btn-primary { background: #6B8E7B; color: white; }
+        .btn-danger { background: #e53935; color: white; }
+        .btn-info { background: #2196f3; color: white; }
+        .diagnostic-box { background: #f5f5f5; border-radius: 10px; padding: 15px; margin: 10px 0; font-family: monospace; font-size: 12px; max-height: 400px; overflow-y: auto; }
+        .diagnostic-box .ok { color: #2e7d32; }
+        .diagnostic-box .error { color: #c62828; }
+        .diagnostic-box .info { color: #1565c0; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+        .form-group input { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 15px; }
+        .filter-buttons { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .filter-btn { padding: 10px 20px; border-radius: 25px; border: 2px solid #6B8E7B; background: white; color: #6B8E7B; cursor: pointer; }
+        .filter-btn.active { background: #6B8E7B; color: white; }
+        .search-box { background: #f5f5f5; border: 2px solid #e0e0e0; border-radius: 12px; padding: 12px 15px; display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+        .search-box input { border: none; background: none; flex: 1; font-size: 15px; outline: none; }
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 0 15px; margin-bottom: 15px; }
+        .stat-card { background: white; border-radius: 15px; padding: 20px; text-align: center; border-top: 4px solid #6B8E7B; }
+        .stat-number { font-size: 32px; font-weight: bold; color: #6B8E7B; }
+        .stat-label { font-size: 13px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-logo">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100" height="100" fill="#8FA89B" rx="8"/>
+                <line x1="50" y1="15" x2="50" y2="60" stroke="#1a1a1a" stroke-width="1.5"/>
+                <text x="58" y="45" font-family="Georgia, serif" font-size="32" font-weight="bold" fill="#1a1a1a">M</text>
+                <text x="22" y="60" font-family="Georgia, serif" font-size="32" font-weight="bold" fill="#1a1a1a">P</text>
+            </svg>
+            <div class="header-brand">
+                <div class="header-title">PELUQUERÍA MAITÉ</div>
+                <div class="header-slogan">Tu corte al instante</div>
+            </div>
+        </div>
+        <div class="header-status">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Conectando...</span>
+        </div>
+    </div>
+
+    <div class="admin-banner" onclick="checkAdminPassword()">
+        <div class="admin-banner-content"><span></span><span class="admin-banner-text">Toca aquí para gestionar el sistema</span></div>
+        <span>→</span>
+    </div>
+
+    <div class="sync-banner syncing" id="syncBanner">
+        <span></span>
+        <span id="syncText">Conectando con la nube...</span>
+    </div>
+
+    <div id="homeTab">
+        <div class="calendar-card">
+            <div class="calendar-header">
+                <div class="calendar-title"><span>📅</span><span>Selecciona una Fecha</span></div>
+                <div class="calendar-nav">
+                    <button class="calendar-nav-btn" onclick="changeMonth(-1)">◀</button>
+                    <button class="calendar-nav-btn" onclick="changeMonth(1)">▶</button>
+                </div>
+            </div>
+            <div class="calendar-month" id="calendarMonth"></div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+        </div>
+
+        <div class="horarios-card" id="horariosCard">
+            <div class="horarios-title">🕐 Horarios para <span id="horariosFechaTexto"></span></div>
+            <div class="horarios-grid" id="horariosGrid"></div>
+        </div>
+    </div>
+
+    <div id="adminTab" class="admin-panel">
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-number" id="statTotal">0</div><div class="stat-label">Total</div></div>
+            <div class="stat-card"><div class="stat-number" id="statPending">0</div><div class="stat-label">Pendientes</div></div>
+            <div class="stat-card"><div class="stat-number" id="statConfirmed">0</div><div class="stat-label">Confirmadas</div></div>
+            <div class="stat-card"><div class="stat-number" id="statToday">0</div><div class="stat-label">Hoy</div></div>
+        </div>
+
+        <div class="tabs-container">
+            <button class="tab active" onclick="showSection('diagnostico', this)">🔍 Diagnóstico</button>
+            <button class="tab" onclick="showSection('reservas', this)">📋 Reservas</button>
+            <button class="tab" onclick="showSection('migrar', this)">📤 Migrar</button>
+        </div>
+
+        <div class="admin-section active" id="section-diagnostico">
+            <div class="section-card">
+                <div class="section-title">🔍 Diagnóstico de Conexión</div>
+                <button class="btn btn-info" onclick="ejecutarDiagnostico()" style="width:100%">🔌 Ejecutar Diagnóstico Completo</button>
+                <div class="diagnostic-box" id="diagnosticBox">
+                    <div class="info">⏳ Esperando diagnóstico...</div>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <div class="section-title">️ Configuración Supabase</div>
+                <div class="form-group">
+                    <label>URL del proyecto:</label>
+                    <input type="text" id="configUrl" value="https://vgplzpaezxyoomdwcksa.supabase.co">
+                </div>
+                <div class="form-group">
+                    <label>API Key (anon):</label>
+                    <input type="password" id="configKey" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZncGx6cGFlenh5b29tZHdja3NhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4NDMwMzcsImV4cCI6MjA5ODQxOTAzN30.K6E5iDNeWXScKvs5gJCIZmykt8XMffwsMHNHf_q-u6w">
+                </div>
+                <button class="btn btn-primary" onclick="guardarConfig()" style="width:100%">💾 Guardar y Reconectar</button>
+            </div>
+        </div>
+
+        <div class="admin-section" id="section-reservas">
+            <div class="section-card">
+                <div class="section-title">📋 Todas las Reservas</div>
+                <div class="search-box">
+                    <span></span>
+                    <input type="text" placeholder="Buscar..." id="searchInput" oninput="renderReservas()">
+                </div>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" onclick="setFilter('all', this)">Todas</button>
+                    <button class="filter-btn" onclick="setFilter('pending', this)">⏳ Pendientes</button>
+                    <button class="filter-btn" onclick="setFilter('confirmed', this)">✅ Confirmadas</button>
+                </div>
+                <div id="reservasList"></div>
+            </div>
+        </div>
+
+        <div class="admin-section" id="section-migrar">
+            <div class="section-card">
+                <div class="section-title"> Migrar Datos entre Tablas</div>
+                <div class="info-box" style="background:#fff3e0; padding:15px; border-radius:10px; margin-bottom:15px;">
+                    <p><strong>⚠️ IMPORTANTE:</strong> Si tus datos están en `citas` pero el código usa `bookings`, usa estos botones:</p>
+                </div>
+                <button class="btn btn-info" onclick="migrarCitasABookings()" style="width:100%; margin-bottom:10px">📋 Copiar `citas` → `bookings`</button>
+                <button class="btn btn-primary" onclick="migrarBloqueosABlocks()" style="width:100%">🚫 Copiar `bloqueos` → `blocks`</button>
+                <div class="diagnostic-box" id="migrateBox"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <div class="nav-item active" onclick="showHome()"><span>🏠</span><span>Inicio</span></div>
+        <div class="nav-item" onclick="checkAdminPassword()"><span>⚙️</span><span>Admin</span></div>
+    </div>
+
+    <div class="modal" id="passwordModal">
+        <div class="modal-content">
+            <h3 style="text-align:center; margin-bottom:20px">🔐 Acceso Administrativo</h3>
+            <input type="password" id="adminPassword" placeholder="Contraseña" style="width:100%; padding:15px; border:2px solid #e0e0e0; border-radius:10px; margin-bottom:15px; font-size:16px; text-align:center">
+            <button class="btn btn-primary" onclick="verifyPassword()" style="width:100%">Acceder</button>
+            <button class="btn" onclick="closePasswordModal()" style="width:100%; background:#f5f5f5; margin-top:10px">Cancelar</button>
+        </div>
+    </div>
+
+    <script>
+        // ===== CONFIGURACIÓN =====
+        const ADMIN_PASSWORD = '120193';
+        const FECHA_CORTE_SEÑA = new Date(2026, 11, 1);
+        const MAX_DAYS = 45;
+        const MAX_SLOTS = 2;
+
+        // ️ IMPORTANTE: Usamos 'citas' en lugar de 'bookings'
+        const TABLA_RESERVAS = 'citas';
+        const TABLA_BLOQUEOS = 'bloqueos';
+
+        let SUPABASE_URL = localStorage.getItem('pm_url') || 'https://vgplzpaezxyoomdwcksa.supabase.co';
+        let SUPABASE_KEY = localStorage.getItem('pm_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZncGx6cGFlenh5b29tZHdja3NhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4NDMwMzcsImV4cCI6MjA5ODQxOTAzN30.K6E5iDNeWXScKvs5gJCIZmykt8XMffwsMHNHf_q-u6w';
+
+        let supabase = null;
+        let reservations = [];
+        let blocks = [];
+        let configHorarios = { openTime: '09:00', closeTime: '15:45', interval: 45 };
+        let DIAS_LABORABLES = { 0: false, 1: true, 2: true, 3: true, 4: true, 5: true, 6: false };
+        let HORARIOS = [];
+        let currentDate = new Date();
+        currentDate.setDate(1);
+        let selectedDate = null;
+        let selectedTime = null;
+        let currentFilter = 'all';
+
+        // ===== INICIALIZACIÓN =====
+        document.addEventListener('DOMContentLoaded', () => {
+            generarHorarios();
+            renderCalendar();
+            initSupabase();
+        });
+
+        function initSupabase() {
+            try {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                updateStatus('syncing', 'Conectando a Supabase...');
+                cargarDatos();
+            } catch(e) {
+                updateStatus('error', 'Error: ' + e.message);
+            }
+        }
+
+        function updateStatus(state, message) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            const banner = document.getElementById('syncBanner');
+            const bannerText = document.getElementById('syncText');
+            
+            dot.className = 'status-dot ' + (state === 'ok' ? '' : 'offline');
+            text.textContent = state === 'ok' ? 'Online' : 'Offline';
+            banner.className = 'sync-banner ' + state;
+            bannerText.textContent = message;
+        }
+
+        // ===== CARGAR DATOS DESDE SUPABASE =====
+        async function cargarDatos() {
+            if (!supabase) return;
+            
+            try {
+                // Intentar primero con 'citas', si falla con 'bookings'
+                let resResult, blockResult;
+                let tablaReservasUsada = TABLA_RESERVAS;
+                let tablaBloqueosUsada = TABLA_BLOQUEOS;
+
+                resResult = await supabase.from(tablaReservasUsada).select('*').order('date', { ascending: true });
+                
+                if (resResult.error) {
+                    console.log('️ Tabla', tablaReservasUsada, 'no accesible, intentando bookings...');
+                    resResult = await supabase.from('bookings').select('*').order('date', { ascending: true });
+                    tablaReservasUsada = 'bookings';
+                }
+
+                blockResult = await supabase.from(tablaBloqueosUsada).select('*');
+                if (blockResult.error) {
+                    console.log('⚠️ Tabla', tablaBloqueosUsada, 'no accesible, intentando blocks...');
+                    blockResult = await supabase.from('blocks').select('*');
+                    tablaBloqueosUsada = 'blocks';
+                }
+
+                if (resResult.error) throw new Error(resResult.error.message);
+                if (blockResult.error) throw new Error(blockResult.error.message);
+
+                // Normalizar datos (maneja ambos formatos de columnas)
+                reservations = (resResult.data || []).map(r => normalizarReserva(r));
+                blocks = (blockResult.data || []).map(b => normalizarBloqueo(b));
+
+                saveLocal();
+                renderCalendar();
+                renderReservas();
+                updateStats();
+                
+                updateStatus('ok', `✅ Conectado - ${reservations.length} citas en "${tablaReservasUsada}"`);
+                
+                console.log('✅ Datos cargados desde:', tablaReservasUsada, tablaBloqueosUsada);
+                console.log(' Total reservas:', reservations.length);
+                console.log('📊 Total bloqueos:', blocks.length);
+                
+            } catch(e) {
+                console.error('❌ Error cargando datos:', e);
+                updateStatus('error', '❌ Error: ' + e.message);
+            }
+        }
+
+        function normalizarReserva(r) {
+            // Maneja tanto el formato antiguo (citas) como el nuevo (bookings)
+            return {
+                id: String(r.id || ''),
+                name: cleanString(r.name || r.nombre || ''),
+                phone: cleanString(r.phone || r.telefono || ''),
+                service: cleanString(r.service || r.servicio || ''),
+                date: cleanString(r.date || r.fecha || ''),
+                time: cleanString(r.time || r.hora || ''),
+                status: mapStatus(r.status || r.estado || 'pending'),
+                receipt: r.receipt || null,
+                requiereSena: r.requiereSena || false,
+                createdAt: r.createdAt || new Date().toISOString()
+            };
+        }
+
+        function normalizarBloqueo(b) {
+            return {
+                id: String(b.id || ''),
+                type: b.type || 'full',
+                date: cleanString(b.date || ''),
+                reason: cleanString(b.reason || ''),
+                startTime: cleanString(b.startTime || ''),
+                endTime: cleanString(b.endTime || '')
+            };
+        }
+
+        function cleanString(val) { return typeof val === 'string' ? val.trim() : val; }
+
+        function mapStatus(estado) {
+            if (!estado) return 'pending';
+            const e = cleanString(estado).toLowerCase();
+            if (e === 'finalizado' || e === 'confirmed' || e === 'approved') return 'confirmed';
+            if (e === 'rejected' || e === 'cancelled' || e === 'cancelado') return 'rejected';
+            if (e === 'en_curso') return 'confirmed';
+            return 'pending';
+        }
+
+        // ===== DIAGNÓSTICO =====
+        async function ejecutarDiagnostico() {
+            const box = document.getElementById('diagnosticBox');
+            box.innerHTML = '<div class="info">🔍 Ejecutando diagnóstico...</div>';
+            const log = [];
+            const addLog = (msg, type='info') => { log.push(`<div class="${type}">${msg}</div>`); box.innerHTML = log.join(''); };
+
+            addLog('1️⃣ Verificando credenciales...');
+            if (!SUPABASE_URL || !SUPABASE_KEY) {
+                addLog('❌ Faltan URL o API Key', 'error');
+                return;
+            }
+            addLog('✅ Credenciales OK', 'ok');
+
+            addLog('2️ Probando tabla "citas"...');
+            try {
+                const { data, error } = await supabase.from('citas').select('count', { count: 'exact', head: true });
+                if (error) {
+                    addLog(`❌ Error: ${error.message}`, 'error');
+                } else {
+                    addLog(`✅ Tabla "citas" accesible (${data.length} registros)`, 'ok');
+                }
+            } catch(e) { addLog(`❌ ${e.message}`, 'error'); }
+
+            addLog('3️ Probando tabla "bookings"...');
+            try {
+                const { data, error } = await supabase.from('bookings').select('count', { count: 'exact', head: true });
+                if (error) {
+                    addLog(`❌ Error: ${error.message}`, 'error');
+                    if (error.message.includes('does not exist')) {
+                        addLog('💡 La tabla "bookings" NO existe. Usa "citas" o créala.', 'info');
+                    }
+                } else {
+                    addLog(`✅ Tabla "bookings" accesible (${data.length} registros)`, 'ok');
+                }
+            } catch(e) { addLog(`❌ ${e.message}`, 'error'); }
+
+            addLog('4️⃣ Probando tabla "bloqueos"...');
+            try {
+                const { data, error } = await supabase.from('bloqueos').select('count', { count: 'exact', head: true });
+                if (error) addLog(`❌ ${error.message}`, 'error');
+                else addLog(`✅ Tabla "bloqueos" accesible`, 'ok');
+            } catch(e) { addLog(`❌ ${e.message}`, 'error'); }
+
+            addLog('5️⃣ Probando tabla "blocks"...');
+            try {
+                const { data, error } = await supabase.from('blocks').select('count', { count: 'exact', head: true });
+                if (error) addLog(`❌ ${error.message}`, 'error');
+                else addLog(`✅ Tabla "blocks" accesible`, 'ok');
+            } catch(e) { addLog(`❌ ${e.message}`, 'error'); }
+
+            addLog('6️⃣ Verificando estructura de "citas"...');
+            try {
+                const { data, error } = await supabase.from('citas').select('*').limit(1);
+                if (error) {
+                    addLog(`❌ ${error.message}`, 'error');
+                } else if (data && data.length > 0) {
+                    const columns = Object.keys(data[0]);
+                    addLog(`✅ Columnas encontradas: ${columns.join(', ')}`, 'ok');
+                } else {
+                    addLog('⚠️ Tabla "citas" existe pero está vacía', 'info');
+                }
+            } catch(e) { addLog(`❌ ${e.message}`, 'error'); }
+
+            addLog('7️ Datos locales...', 'info');
+            addLog(`📊 Reservas locales: ${reservations.length}`, 'info');
+            addLog(` Bloqueos locales: ${blocks.length}`, 'info');
+
+            addLog('✅ Diagnóstico completado', 'ok');
+        }
+
+        // ===== MIGRACIÓN =====
+        async function migrarCitasABookings() {
+            const box = document.getElementById('migrateBox');
+            box.innerHTML = '<div class="info">🔄 Migrando...</div>';
+            
+            try {
+                const { data: citas, error } = await supabase.from('citas').select('*');
+                if (error) throw error;
+
+                if (!citas || citas.length === 0) {
+                    box.innerHTML = '<div class="error">⚠️ No hay datos en "citas"</div>';
+                    return;
+                }
+
+                // Crear tabla bookings si no existe (esto lo hacemos con upsert)
+                const bookings = citas.map(c => ({
+                    id: String(c.id || ''),
+                    name: cleanString(c.name || c.nombre || ''),
+                    phone: cleanString(c.phone || c.telefono || ''),
+                    service: cleanString(c.service || c.servicio || ''),
+                    date: cleanString(c.date || c.fecha || ''),
+                    time: cleanString(c.time || c.hora || ''),
+                    status: mapStatus(c.status || c.estado || 'pending'),
+                    receipt: c.receipt || null,
+                    requiereSena: c.requiereSena || false,
+                    createdAt: c.createdAt || new Date().toISOString()
+                }));
+
+                const { error: insertError } = await supabase.from('bookings').upsert(bookings);
+                if (insertError) throw insertError;
+
+                box.innerHTML = `<div class="ok">✅ Migrados ${bookings.length} registros de "citas" a "bookings"</div>`;
+                alert(`✅ Migración exitosa: ${bookings.length} registros`);
+                
+                // Recargar
+                cargarDatos();
+            } catch(e) {
+                box.innerHTML = `<div class="error">❌ Error: ${e.message}</div>`;
+                alert('❌ Error: ' + e.message);
+            }
+        }
+
+        async function migrarBloqueosABlocks() {
+            const box = document.getElementById('migrateBox');
+            box.innerHTML += '<div class="info">🔄 Migrando bloqueos...</div>';
+            
+            try {
+                const { data: bloqueos, error } = await supabase.from('bloqueos').select('*');
+                if (error) throw error;
+
+                if (!bloqueos || bloqueos.length === 0) {
+                    box.innerHTML += '<div class="info">⚠️ No hay datos en "bloqueos"</div>';
+                    return;
+                }
+
+                const blocks = bloqueos.map(b => ({
+                    id: String(b.id || ''),
+                    type: b.type || 'full',
+                    date: cleanString(b.date || ''),
+                    reason: cleanString(b.reason || ''),
+                    startTime: cleanString(b.startTime || ''),
+                    endTime: cleanString(b.endTime || '')
+                }));
+
+                const { error: insertError } = await supabase.from('blocks').upsert(blocks);
+                if (insertError) throw insertError;
+
+                box.innerHTML += `<div class="ok">✅ Migrados ${blocks.length} bloqueos</div>`;
+                cargarDatos();
+            } catch(e) {
+                box.innerHTML += `<div class="error">❌ ${e.message}</div>`;
+            }
+        }
+
+        // ===== GUARDAR CONFIG =====
+        function guardarConfig() {
+            SUPABASE_URL = document.getElementById('configUrl').value.trim();
+            SUPABASE_KEY = document.getElementById('configKey').value.trim();
+            localStorage.setItem('pm_url', SUPABASE_URL);
+            localStorage.setItem('pm_key', SUPABASE_KEY);
+            initSupabase();
+            alert('✅ Configuración guardada. Reconectando...');
+        }
+
+        // ===== CALENDARIO =====
+        function generarHorarios() {
+            HORARIOS = [];
+            const [oh, om] = configHorarios.openTime.split(':').map(Number);
+            const [ch, cm] = configHorarios.closeTime.split(':').map(Number);
+            const interval = configHorarios.interval || 45;
+            let min = oh * 60 + om;
+            const end = ch * 60 + cm;
+            while (min <= end) {
+                HORARIOS.push(`${String(Math.floor(min/60)).padStart(2,'0')}:${String(min%60).padStart(2,'0')}`);
+                min += interval;
+            }
+        }
+
+        function formatDate(date) {
+            return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendarGrid');
+            const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+            const days = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+            document.getElementById('calendarMonth').textContent = `${months[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+            
+            let html = days.map(d => `<div class="calendar-day-header">${d}</div>`).join('');
+            const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+            const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+            const today = new Date(); today.setHours(0,0,0,0);
+            const maxDate = new Date(); maxDate.setDate(maxDate.getDate() + MAX_DAYS);
+
+            for (let i = 0; i < firstDay; i++) html += '<div class="calendar-day disabled"></div>';
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+                const isPast = date < today;
+                const isFuture = date > maxDate;
+                const isDisabled = isPast || isFuture || !DIAS_LABORABLES[date.getDay()] || blocks.some(b => b.type === 'full' && b.date === formatDate(date));
+                const isSelected = selectedDate && selectedDate.getDate() === day && selectedDate.getMonth() === currentDate.getMonth();
+                const hasAppt = reservations.some(r => r.date === formatDate(date));
+                
+                let cls = 'calendar-day';
+                if (isDisabled) cls += ' disabled';
+                if (isSelected) cls += ' selected';
+                if (hasAppt) cls += ' has-appointments';
+                
+                html += `<div class="${cls}" onclick="selectDate(${day})">${day}</div>`;
+            }
+            grid.innerHTML = html;
+        }
+
+        function changeMonth(delta) {
+            currentDate.setMonth(currentDate.getMonth() + delta);
+            renderCalendar();
+        }
+
+        function selectDate(day) {
+            const today = new Date(); today.setHours(0,0,0,0);
+            const maxDate = new Date(); maxDate.setDate(maxDate.getDate() + MAX_DAYS);
+            const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+            
+            if (date < today) { alert('⚠️ No puedes reservar en días pasados'); return; }
+            if (date > maxDate) { alert(`⚠️ Solo hasta ${MAX_DAYS} días`); return; }
+            if (!DIAS_LABORABLES[date.getDay()]) { alert('⚠️ La peluquería no abre ese día'); return; }
+            if (blocks.some(b => b.type === 'full' && b.date === formatDate(date))) {
+                alert('🚫 Día bloqueado');
+                return;
+            }
+
+            selectedDate = date;
+            renderCalendar();
+            showHorarios(date);
+        }
+
+        function showHorarios(date) {
+            const card = document.getElementById('horariosCard');
+            const grid = document.getElementById('horariosGrid');
+            const dateStr = formatDate(date);
+            const dayName = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][date.getDay()];
+            const monthName = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][date.getMonth()];
+            
+            document.getElementById('horariosFechaTexto').textContent = `${dayName} ${date.getDate()} de ${monthName}`;
+            
+            const hourBlocks = blocks.filter(b => b.type === 'hours' && b.date === dateStr);
+            
+            let html = '';
+            HORARIOS.forEach(time => {
+                const isBlocked = hourBlocks.some(b => b.startTime === time);
+                const slot = getSlotInfo(dateStr, time);
+                
+                let cls = 'horario-slot ' + slot.estado;
+                let label = slot.label;
+                
+                if (isBlocked) { cls = 'horario-slot ocupado'; label = 'Bloqueado'; }
+                
+                const clickable = !isBlocked && slot.estado !== 'ocupado';
+                html += `<div class="${cls}" ${clickable ? `onclick="selectTime('${time}', this)"` : ''}>${time}<span class="slot-label">${label}</span></div>`;
+            });
+            
+            grid.innerHTML = html;
+            card.classList.add('visible');
+        }
+
+        function getSlotInfo(fecha, hora) {
+            const slot = reservations.filter(r => r.date === fecha && r.time === hora && (r.status === 'confirmed' || r.status === 'pending'));
+            let total = 0, hayCorte = false;
+            slot.forEach(r => {
+                const servicios = r.service ? r.service.split(',').map(s => s.trim()) : [];
+                total += servicios.length;
+                if (servicios.some(s => s.toLowerCase().includes('corte'))) hayCorte = true;
+            });
+            if (total >= MAX_SLOTS) return { estado: 'ocupado', label: 'Ocupado' };
+            if (total === 1 && hayCorte) return { estado: 'con-corte', label: 'Con Corte' };
+            if (total === 1) return { estado: 'parcial', label: '1/2 ocupado' };
+            return { estado: 'disponible', label: 'Disponible' };
+        }
+
+        function selectTime(time, el) {
+            document.querySelectorAll('.horario-slot').forEach(s => s.classList.remove('selected'));
+            el.classList.add('selected');
+            selectedTime = time;
+            alert(`✅ Horario seleccionado: ${time}\n\n(Aquí iría el formulario de reserva)`);
+        }
+
+        // ===== RESERVAS ADMIN =====
+        function renderReservas() {
+            const list = document.getElementById('reservasList');
+            let filtered = reservations;
+            if (currentFilter !== 'all') filtered = reservations.filter(r => r.status === currentFilter);
+            const search = document.getElementById('searchInput')?.value.toLowerCase() || '';
+            if (search) filtered = filtered.filter(r => r.name.toLowerCase().includes(search) || r.phone.includes(search));
+            
+            if (filtered.length === 0) {
+                list.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">No hay reservas</p>';
+                return;
+            }
+            
+            list.innerHTML = filtered.map(r => `
+                <div class="reservation-item">
+                    <div class="reservation-header">
+                        <div class="reservation-name">${r.name}</div>
+                        <span style="padding:4px 12px; border-radius:15px; font-size:12px; background:${r.status==='confirmed'?'#e8f0eb':r.status==='pending'?'#fff9c4':'#ffebee'}; color:${r.status==='confirmed'?'#2d5a3d':r.status==='pending'?'#f57f17':'#c62828'}">
+                            ${r.status==='pending'?'⏳ Pendiente':r.status==='confirmed'?'✅ Confirmada':'❌ Rechazada'}
+                        </span>
+                    </div>
+                    <div class="reservation-details">
+                        📱 ${r.phone}<br>
+                        📅 ${r.date} a las ${r.time}<br>
+                        💇 ${r.service}
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn-approve" onclick="aprobar('${r.id}')">✅ Confirmar</button>
+                        <button class="btn-reject" onclick="rechazar('${r.id}')"> Rechazar</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function aprobar(id) {
+            const r = reservations.find(x => x.id === id);
+            if (r) {
+                r.status = 'confirmed';
+                saveLocal();
+                // Actualizar en Supabase
+                if (supabase) {
+                    await supabase.from(TABLA_RESERVAS).update({ status: 'confirmed' }).eq('id', id);
+                }
+                renderReservas();
+                updateStats();
+                alert('✅ Confirmada');
+            }
+        }
+
+        async function rechazar(id) {
+            const reason = prompt('Motivo del rechazo:');
+            if (reason) {
+                const r = reservations.find(x => x.id === id);
+                if (r) {
+                    r.status = 'rejected';
+                    saveLocal();
+                    if (supabase) {
+                        await supabase.from(TABLA_RESERVAS).update({ status: 'rejected' }).eq('id', id);
+                    }
+                    renderReservas();
+                    updateStats();
+                }
+            }
+        }
+
+        function setFilter(filter, btn) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderReservas();
+        }
+
+        function updateStats() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('statTotal').textContent = reservations.length;
+            document.getElementById('statPending').textContent = reservations.filter(r => r.status === 'pending').length;
+            document.getElementById('statConfirmed').textContent = reservations.filter(r => r.status === 'confirmed').length;
+            document.getElementById('statToday').textContent = reservations.filter(r => r.date === today).length;
+        }
+
+        function saveLocal() {
+            localStorage.setItem('pm_reservations', JSON.stringify(reservations));
+            localStorage.setItem('pm_blocks', JSON.stringify(blocks));
+        }
+
+        // ===== NAVEGACIÓN =====
+        function checkAdminPassword() {
+            document.getElementById('passwordModal').classList.add('active');
+            document.getElementById('adminPassword').value = '';
+            setTimeout(() => document.getElementById('adminPassword').focus(), 100);
+        }
+        function closePasswordModal() { document.getElementById('passwordModal').classList.remove('active'); }
+        function verifyPassword() {
+            const pass = document.getElementById('adminPassword').value;
+            if (pass === ADMIN_PASSWORD) {
+                closePasswordModal();
+                document.getElementById('homeTab').style.display = 'none';
+                document.getElementById('adminTab').classList.add('active');
+                document.querySelectorAll('.nav-item').forEach((n,i) => n.classList.toggle('active', i===1));
+                renderReservas();
+                updateStats();
+            } else {
+                alert('❌ Contraseña incorrecta');
+            }
+        }
+
+        function showHome() {
+            document.getElementById('homeTab').style.display = 'block';
+            document.getElementById('adminTab').classList.remove('active');
+            document.querySelectorAll('.nav-item').forEach((n,i) => n.classList.toggle('active', i===0));
+        }
+
+        function showSection(section, btn) {
+            document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById('section-' + section).classList.add('active');
+            btn.classList.add('active');
+        }
+    </script>
+</body>
+</html>
