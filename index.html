@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Peluquería Maité</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: Arial, sans-serif; background: linear-gradient(180deg, #fce4ec, #f8bbd0); min-height: 100vh; padding-bottom: 80px; }
+.header { background: #6B8E7B; color: white; padding: 15px; text-align: center; }
+.header h1 { font-size: 20px; }
+.header p { font-size: 12px; font-style: italic; }
+.container { max-width: 600px; margin: 0 auto; padding: 15px; }
+.card { background: white; border-radius: 15px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+.card h2 { color: #6B8E7B; font-size: 18px; margin-bottom: 15px; }
+.calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.calendar-header button { background: #6B8E7B; color: white; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+.calendar-month { font-size: 18px; font-weight: bold; color: #6B8E7B; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.day-header { text-align: center; font-size: 12px; color: #666; padding: 5px; font-weight: bold; }
+.day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 10px; cursor: pointer; font-size: 14px; background: #f5f5f5; }
+.day:hover { background: #e8f0eb; }
+.day.disabled { color: #ccc; cursor: not-allowed; background: #f5f5f5; }
+.day.selected { background: #6B8E7B; color: white; font-weight: bold; }
+.day.has-appt { position: relative; }
+.day.has-appt::after { content: ''; position: absolute; bottom: 3px; width: 5px; height: 5px; background: #6B8E7B; border-radius: 50%; }
+.horarios { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 15px; }
+.hora { padding: 12px; text-align: center; border: 2px solid #6B8E7B; border-radius: 10px; cursor: pointer; font-weight: bold; }
+.hora:hover { background: #e8f0eb; }
+.hora.selected { background: #6B8E7B; color: white; }
+.hora.ocupada { background: #ffebee; color: #c62828; border-color: #e53935; cursor: not-allowed; text-decoration: line-through; }
+.form-group { margin-bottom: 15px; }
+.form-group label { display: block; font-weight: bold; margin-bottom: 5px; color: #333; }
+.form-group input, .form-group select { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 15px; }
+.btn { width: 100%; padding: 15px; background: #6B8E7B; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary { background: #f5f5f5; color: #6B8E7B; border: 2px solid #6B8E7B; }
+.services { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.service { padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; cursor: pointer; text-align: center; }
+.service.selected { border-color: #6B8E7B; background: #e8f0eb; font-weight: bold; }
+.admin-banner { background: #8FA89B; color: white; padding: 15px; text-align: center; cursor: pointer; margin-bottom: 15px; border-radius: 10px; }
+.reservation { background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 4px solid #6B8E7B; }
+.reservation h3 { font-size: 16px; margin-bottom: 5px; }
+.reservation p { font-size: 13px; color: #666; margin: 3px 0; }
+.status { display: inline-block; padding: 3px 10px; border-radius: 15px; font-size: 11px; font-weight: bold; }
+.status-pending { background: #fff9c4; color: #f57f17; }
+.status-approved { background: #e8f0eb; color: #2d5a3d; }
+.actions { display: flex; gap: 10px; margin-top: 10px; }
+.actions button { flex: 1; padding: 8px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+.btn-approve { background: #6B8E7B; color: white; }
+.btn-reject { background: #e53935; color: white; }
+.modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+.modal.active { display: flex; }
+.modal-content { background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 400px; }
+.modal-content h2 { text-align: center; margin-bottom: 20px; color: #6B8E7B; }
+.hidden { display: none; }
+.tabs { display: flex; gap: 10px; margin-bottom: 15px; overflow-x: auto; }
+.tab { padding: 10px 20px; background: white; border: 2px solid #6B8E7B; border-radius: 25px; cursor: pointer; white-space: nowrap; }
+.tab.active { background: #6B8E7B; color: white; }
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; display: flex; justify-content: space-around; padding: 10px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); }
+.nav-item { text-align: center; cursor: pointer; padding: 5px 20px; color: #999; }
+.nav-item.active { color: #6B8E7B; }
+.nav-item span:first-child { font-size: 24px; display: block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+<h1>PELUQUERÍA MAITÉ</h1>
+<p>Tu corte al instante</p>
+</div>
+
+<div class="container">
+
+<!-- HOME -->
+<div id="homeView">
+<div class="admin-banner" onclick="openAdmin()">
+👑 Toca aquí para gestionar el sistema →
+</div>
+
+<div class="card">
+<h2>📅 Selecciona una fecha</h2>
+<div class="calendar-header">
+<button onclick="changeMonth(-1)">◀</button>
+<div class="calendar-month" id="calendarMonth"></div>
+<button onclick="changeMonth(1)">▶</button>
+</div>
+<div class="calendar-grid" id="calendarGrid"></div>
+</div>
+
+<div class="card hidden" id="horariosCard">
+<h2>🕐 Horarios para <span id="fechaTexto"></span></h2>
+<div class="horarios" id="horariosGrid"></div>
+</div>
+
+<div class="card hidden" id="formCard">
+<h2>📋 Completa tu reserva</h2>
+<p style="margin-bottom:15px;color:#666">Fecha: <strong id="selectedDateText"></strong> - Hora: <strong id="selectedTimeText"></strong></p>
+
+<div class="form-group">
+<label>Nombre completo *</label>
+<input type="text" id="clientName" placeholder="Tu nombre" oninput="validateForm()">
+</div>
+
+<div class="form-group">
+<label>Teléfono *</label>
+<input type="tel" id="clientPhone" placeholder="53XXXXXX" oninput="validateForm()">
+</div>
+
+<div class="form-group">
+<label>Servicios (puedes elegir varios) *</label>
+<div class="services" id="servicesList"></div>
+</div>
+
+<button class="btn" id="submitBtn" onclick="submitReservation()" disabled>✉️ ENVIAR RESERVA</button>
+<button class="btn btn-secondary" onclick="backToHorarios()">← Volver</button>
+</div>
+</div>
+
+<!-- ADMIN -->
+<div id="adminView" class="hidden">
+<div class="card">
+<h2>👑 Panel de Administración</h2>
+<div class="tabs">
+<div class="tab active" onclick="showSection('reservas', this)">📋 Reservas</div>
+<div class="tab" onclick="showSection('stats', this)">📊 Estadísticas</div>
+</div>
+
+<div id="section-reservas">
+<input type="text" placeholder="🔍 Buscar..." style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:10px;margin-bottom:15px" oninput="renderAdminReservations(this.value)">
+<div id="adminReservationsList"></div>
+</div>
+
+<div id="section-stats" class="hidden">
+<div id="statsContent"></div>
+</div>
+
+<button class="btn btn-secondary" onclick="closeAdmin()">← Volver al inicio</button>
+</div>
+</div>
+
+</div>
+
+<div class="bottom-nav">
+<div class="nav-item active" onclick="showHome()">
+<span>🏠</span>
+<span>Inicio</span>
+</div>
+<div class="nav-item" onclick="openAdmin()">
+<span>⚙️</span>
+<span>Admin</span>
+</div>
+</div>
+
+<!-- Modal contraseña -->
+<div class="modal" id="passwordModal">
+<div class="modal-content">
+<h2>🔐 Acceso Admin</h2>
+<input type="password" id="adminPassword" placeholder="Contraseña" style="width:100%;padding:15px;border:2px solid #e0e0e0;border-radius:10px;margin-bottom:15px">
+<button class="btn" onclick="verifyPassword()">Acceder</button>
+<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+</div>
+</div>
+
+<script>
+// ============ CONFIGURACIÓN ============
+const ADMIN_PASSWORD = '120193';
+const SERVICES = ["Corte de cabello", "Tinte completo", "Peinado", "Rayitos", "Tratamiento natural", "Decoloración"];
+const HORARIOS = ["09:00", "09:45", "10:30", "11:15", "12:00", "12:45", "13:30", "14:15", "15:00", "15:45"];
+
+// ============ ESTADO ============
+let currentDate = new Date();
+currentDate.setDate(1);
+let selectedDate = null;
+let selectedTime = null;
+let selectedServices = [];
+let reservations = JSON.parse(localStorage.getItem('maite_reservations') || '[]');
+
+// ============ INICIALIZACIÓN ============
+document.addEventListener('DOMContentLoaded', function() {
+console.log('🚀 Iniciando sistema...');
+renderCalendar();
+renderServices();
+console.log('✅ Sistema iniciado. Reservas:', reservations.length);
+});
+
+// ============ CALENDARIO ============
+function renderCalendar() {
+const grid = document.getElementById('calendarGrid');
+const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const days = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+
+document.getElementById('calendarMonth').textContent = months[currentDate.getMonth()] + ' ' + currentDate.getFullYear();
+
+let html = '';
+days.forEach(d => html += '<div class="day-header">' + d + '</div>');
+
+const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+const today = new Date();
+today.setHours(0,0,0,0);
+
+for (let i = 0; i < firstDay; i++) {
+html += '<div class="day disabled"></div>';
+}
+
+for (let day = 1; day <= daysInMonth; day++) {
+const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+const dateStr = formatDate(date);
+const isPast = date < today;
+const dayOfWeek = date.getDay();
+const isSunday = dayOfWeek === 0;
+const isDisabled = isPast || isSunday;
+const isSelected = selectedDate && formatDate(selectedDate) === dateStr;
+const hasAppt = reservations.some(r => r.date === dateStr);
+
+let classes = 'day';
+if (isDisabled) classes += ' disabled';
+if (isSelected) classes += ' selected';
+if (hasAppt) classes += ' has-appt';
+
+if (isDisabled) {
+html += '<div class="' + classes + '">' + day + '</div>';
+} else {
+html += '<div class="' + classes + '" onclick="selectDate(' + day + ')">' + day + '</div>';
+}
+}
+grid.innerHTML = html;
+}
+
+function changeMonth(delta) {
+currentDate.setMonth(currentDate.getMonth() + delta);
+renderCalendar();
+}
+
+function selectDate(day) {
+selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+selectedTime = null;
+selectedServices = [];
+renderCalendar();
+showHorarios();
+}
+
+function formatDate(date) {
+return date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0');
+}
+
+// ============ HORARIOS ============
+function showHorarios() {
+const card = document.getElementById('horariosCard');
+const grid = document.getElementById('horariosGrid');
+const dateStr = formatDate(selectedDate);
+const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+document.getElementById('fechaTexto').textContent = selectedDate.getDate() + ' de ' + months[selectedDate.getMonth()];
+
+let html = '';
+HORARIOS.forEach(hora => {
+const ocupado = reservations.some(r => r.date === dateStr && r.time === hora && r.status === 'approved');
+if (ocupado) {
+html += '<div class="hora ocupada">' + hora + '</div>';
+} else {
+html += '<div class="hora" onclick="selectTime(\'' + hora + '\', this)">' + hora + '</div>';
+}
+});
+
+grid.innerHTML = html;
+card.classList.remove('hidden');
+card.scrollIntoView({behavior: 'smooth'});
+}
+
+function selectTime(time, element) {
+document.querySelectorAll('.hora').forEach(h => h.classList.remove('selected'));
+element.classList.add('selected');
+selectedTime = time;
+
+document.getElementById('selectedDateText').textContent = formatDate(selectedDate);
+document.getElementById('selectedTimeText').textContent = time;
+document.getElementById('horariosCard').classList.add('hidden');
+document.getElementById('formCard').classList.remove('hidden');
+document.getElementById('formCard').scrollIntoView({behavior: 'smooth'});
+validateForm();
+}
+
+function backToHorarios() {
+document.getElementById('formCard').classList.add('hidden');
+document.getElementById('horariosCard').classList.remove('hidden');
+selectedTime = null;
+document.querySelectorAll('.hora').forEach(h => h.classList.remove('selected'));
+}
+
+// ============ SERVICIOS ============
+function renderServices() {
+const container = document.getElementById('servicesList');
+container.innerHTML = SERVICES.map(s => 
+'<div class="service" onclick="toggleService(this, \'' + s + '\')">' + s + '</div>'
+).join('');
+}
+
+function toggleService(element, service) {
+element.classList.toggle('selected');
+if (element.classList.contains('selected')) {
+selectedServices.push(service);
+} else {
+selectedServices = selectedServices.filter(s => s !== service);
+}
+validateForm();
+}
+
+// ============ FORMULARIO ============
+function validateForm() {
+const name = document.getElementById('clientName').value.trim();
+const phone = document.getElementById('clientPhone').value.trim();
+const valid = name && phone && selectedServices.length > 0 && selectedTime;
+document.getElementById('submitBtn').disabled = !valid;
+}
+
+function submitReservation() {
+const name = document.getElementById('clientName').value.trim();
+const phone = document.getElementById('clientPhone').value.trim();
+
+const reservation = {
+id: 'r' + Date.now(),
+name: name,
+phone: phone,
+date: formatDate(selectedDate),
+time: selectedTime,
+services: selectedServices.join(', '),
+status: 'pending',
+createdAt: new Date().toISOString()
+};
+
+reservations.push(reservation);
+localStorage.setItem('maite_reservations', JSON.stringify(reservations));
+
+alert('✅ ¡Reserva enviada!\n\nNombre: ' + name + '\nFecha: ' + reservation.date + '\nHora: ' + reservation.time + '\nServicios: ' + reservation.services + '\n\nEstado: Pendiente de aprobación');
+
+// Reset
+document.getElementById('clientName').value = '';
+document.getElementById('clientPhone').value = '';
+selectedServices = [];
+selectedTime = null;
+document.querySelectorAll('.service').forEach(s => s.classList.remove('selected'));
+document.getElementById('formCard').classList.add('hidden');
+document.getElementById('submitBtn').disabled = true;
+
+renderCalendar();
+showHome();
+}
+
+// ============ ADMIN ============
+function openAdmin() {
+document.getElementById('passwordModal').classList.add('active');
+document.getElementById('adminPassword').value = '';
+}
+
+function closeModal() {
+document.getElementById('passwordModal').classList.remove('active');
+}
+
+function verifyPassword() {
+const pass = document.getElementById('adminPassword').value;
+if (pass === ADMIN_PASSWORD) {
+closeModal();
+document.getElementById('homeView').classList.add('hidden');
+document.getElementById('adminView').classList.remove('hidden');
+renderAdminReservations('');
+renderStats();
+} else {
+alert('❌ Contraseña incorrecta');
+}
+}
+
+function closeAdmin() {
+document.getElementById('adminView').classList.add('hidden');
+document.getElementById('homeView').classList.remove('hidden');
+renderCalendar();
+}
+
+function showHome() {
+document.getElementById('homeView').classList.remove('hidden');
+document.getElementById('adminView').classList.add('hidden');
+renderCalendar();
+}
+
+function showSection(section, tab) {
+document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+tab.classList.add('active');
+document.getElementById('section-reservas').classList.add('hidden');
+document.getElementById('section-stats').classList.add('hidden');
+document.getElementById('section-' + section).classList.remove('hidden');
+if (section === 'stats') renderStats();
+}
+
+function renderAdminReservations(search) {
+const list = document.getElementById('adminReservationsList');
+let filtered = reservations;
+if (search) {
+search = search.toLowerCase();
+filtered = reservations.filter(r => 
+r.name.toLowerCase().includes(search) || 
+r.phone.includes(search) ||
+r.services.toLowerCase().includes(search)
+);
+}
+
+if (filtered.length === 0) {
+list.innerHTML = '<p style="text-align:center;color:#999;padding:20px">No hay reservas</p>';
+return;
+}
+
+filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+list.innerHTML = filtered.map(r => {
+const statusClass = r.status === 'approved' ? 'status-approved' : 'status-pending';
+const statusText = r.status === 'approved' ? '✅ Aprobada' : '⏳ Pendiente';
+return `
+<div class="reservation">
+<h3>${r.name}</h3>
+<p>📱 ${r.phone}</p>
+<p>📅 ${r.date} a las ${r.time}</p>
+<p>💇 ${r.services}</p>
+<span class="status ${statusClass}">${statusText}</span>
+<div class="actions">
+${r.status !== 'approved' ? '<button class="btn-approve" onclick="approveReservation(\'' + r.id + '\')">✅ Aprobar</button>' : ''}
+${r.status !== 'rejected' ? '<button class="btn-reject" onclick="rejectReservation(\'' + r.id + '\')">❌ Rechazar</button>' : ''}
+</div>
+</div>
+`;
+}).join('');
+}
+
+function approveReservation(id) {
+const r = reservations.find(x => x.id === id);
+if (r) {
+r.status = 'approved';
+localStorage.setItem('maite_reservations', JSON.stringify(reservations));
+renderAdminReservations('');
+renderStats();
+alert('✅ Reserva aprobada');
+}
+}
+
+function rejectReservation(id) {
+const r = reservations.find(x => x.id === id);
+if (r) {
+r.status = 'rejected';
+localStorage.setItem('maite_reservations', JSON.stringify(reservations));
+renderAdminReservations('');
+renderStats();
+alert('❌ Reserva rechazada');
+}
+}
+
+function renderStats() {
+const total = reservations.length;
+const pending = reservations.filter(r => r.status === 'pending').length;
+const approved = reservations.filter(r => r.status === 'approved').length;
+const rejected = reservations.filter(r => r.status === 'rejected').length;
+const today = formatDate(new Date());
+const todayCount = reservations.filter(r => r.date === today).length;
+
+document.getElementById('statsContent').innerHTML = `
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+<div style="background:white;padding:20px;border-radius:10px;text-align:center">
+<div style="font-size:32px;font-weight:bold;color:#6B8E7B">${total}</div>
+<div style="font-size:13px;color:#666">Total</div>
+</div>
+<div style="background:white;padding:20px;border-radius:10px;text-align:center">
+<div style="font-size:32px;font-weight:bold;color:#f57f17">${pending}</div>
+<div style="font-size:13px;color:#666">Pendientes</div>
+</div>
+<div style="background:white;padding:20px;border-radius:10px;text-align:center">
+<div style="font-size:32px;font-weight:bold;color:#2d5a3d">${approved}</div>
+<div style="font-size:13px;color:#666">Aprobadas</div>
+</div>
+<div style="background:white;padding:20px;border-radius:10px;text-align:center">
+<div style="font-size:32px;font-weight:bold;color:#c62828">${rejected}</div>
+<div style="font-size:13px;color:#666">Rechazadas</div>
+</div>
+<div style="background:white;padding:20px;border-radius:10px;text-align:center;grid-column:span 2">
+<div style="font-size:32px;font-weight:bold;color:#6B8E7B">${todayCount}</div>
+<div style="font-size:13px;color:#666">Citas hoy (${today})</div>
+</div>
+</div>
+`;
+}
+</script>
+
+</body>
+</html>
