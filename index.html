@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Peluquería Maité - Tu corte al instante</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(180deg,#fce4ec 0%,#f8bbd0 100%);min-height:100vh;padding-bottom:70px}
+.header{background:linear-gradient(135deg,#8FA89B 0%,#6B8E7B 100%);color:#fff;padding:12px 15px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.2)}
+.header-logo{display:flex;align-items:center;gap:12px}
+.header-logo svg{width:50px;height:50px;flex-shrink:0}
+.header-brand{display:flex;flex-direction:column}
+.header-title{font-family:Georgia,serif;font-size:18px;font-weight:700;letter-spacing:2px;line-height:1.1}
+.header-slogan{font-family:Georgia,serif;font-size:11px;font-style:italic;opacity:.9}
+.header-status{display:flex;align-items:center;gap:6px;font-size:13px}
+.status-dot{width:10px;height:10px;border-radius:50%;animation:pulse 2s infinite}
+.status-dot.online{background:#4caf50}
+.status-dot.offline{background:#e53935}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.admin-banner{background:linear-gradient(135deg,#6B8E7B 0%,#8FA89B 100%);color:#fff;padding:12px 20px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.sync-banner{padding:10px 15px;margin:15px;border-radius:10px;font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sync-banner.ok{background:#e8f5e9;border:2px solid #4caf50;color:#2e7d32}
+.sync-banner.error{background:#ffebee;border:2px solid #e53935;color:#c62828}
+.sync-banner.syncing{background:#fff3e0;border:2px solid #ff9800;color:#e65100}
+.sync-banner.local{background:#e3f2fd;border:2px solid #2196f3;color:#1565c0}
+.proceso-info{background:linear-gradient(135deg,#fff3e0 0%,#ffe0b2 100%);border:2px solid #ff9800;border-radius:15px;padding:20px;margin:15px}
+.proceso-title{font-family:Georgia,serif;font-size:18px;font-weight:700;color:#e65100;margin-bottom:15px}
+.proceso-step{display:flex;gap:12px;margin-bottom:12px;padding:12px;background:#fff;border-radius:10px}
+.proceso-number{width:32px;height:32px;background:#ff9800;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0}
+.proceso-text{font-size:14px;color:#333;line-height:1.5}
+.proceso-text strong{color:#e65100}
+.calendar-card{background:#fff;border-radius:20px;padding:20px;margin:15px;box-shadow:0 4px 15px rgba(0,0,0,.1)}
+.calendar-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.calendar-title{font-family:Georgia,serif;font-size:18px;font-weight:700;color:#6B8E7B}
+.calendar-nav{display:flex;gap:10px}
+.calendar-nav-btn{width:40px;height:40px;border-radius:50%;border:none;background:#6B8E7B;color:#fff;font-size:18px;cursor:pointer}
+.calendar-month{text-align:center;font-family:Georgia,serif;font-size:20px;font-weight:700;color:#6B8E7B;margin-bottom:15px}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.calendar-day-header{text-align:center;font-size:12px;color:#666;font-weight:600;padding:8px 0}
+.calendar-day{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:12px;cursor:pointer;position:relative;font-size:16px}
+.calendar-day:hover{background:#e8f0eb}
+.calendar-day.disabled{color:#ccc;cursor:not-allowed}
+.calendar-day.selected{background:#8FA89B;color:#fff;font-weight:700}
+.calendar-day.has-appointments::after{content:'';width:6px;height:6px;background:#6B8E7B;border-radius:50%;position:absolute;bottom:4px}
+.horarios-card{background:#fff;border-radius:20px;padding:20px;margin:15px;box-shadow:0 4px 15px rgba(0,0,0,.1);display:none}
+.horarios-card.visible{display:block}
+.horarios-title{font-family:Georgia,serif;font-size:18px;font-weight:700;color:#6B8E7B;margin-bottom:15px}
+.horarios-leyenda{display:flex;gap:12px;margin-bottom:15px;flex-wrap:wrap;font-size:11px}
+.leyenda-item{display:flex;align-items:center;gap:6px}
+.leyenda-dot{width:12px;height:12px;border-radius:4px}
+.leyenda-dot.disponible{background:#fff;border:2px solid #6B8E7B}
+.leyenda-dot.con-corte{background:#fff;border:2px dashed #ff9800}
+.leyenda-dot.parcial{background:#fce4ec;border:2px solid #e91e63}
+.leyenda-dot.ocupado{background:#e53935}
+.horarios-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.horario-slot{padding:14px 10px;border-radius:10px;text-align:center;font-weight:600;font-size:14px;cursor:pointer;border:2px solid transparent}
+.horario-slot.disponible{background:#fff;color:#2d5a3d;border-color:#6B8E7B}
+.horario-slot.disponible.selected{background:#6B8E7B;color:#fff}
+.horario-slot.con-corte{background:#fff;color:#e65100;border-color:#ff9800;border-style:dashed}
+.horario-slot.con-corte.selected{background:#ff9800;color:#fff}
+.horario-slot.parcial{background:#fce4ec;color:#880e4f;border-color:#e91e63}
+.horario-slot.parcial.selected{background:#e91e63;color:#fff}
+.horario-slot.ocupado{background:#ffebee;color:#c62828;border-color:#e53935;text-decoration:line-through;opacity:.7;cursor:not-allowed}
+.horario-slot .slot-label{font-size:10px;display:block;margin-top:3px}
+.admin-panel{display:none}
+.admin-panel.active{display:block}
+.admin-welcome{background:linear-gradient(135deg,#e8f0eb 0%,#d4e4d9 100%);border:2px solid #6B8E7B;border-radius:15px;padding:25px 20px;margin:15px;text-align:center}
+.admin-welcome-title{font-family:Georgia,serif;font-size:24px;font-weight:700;color:#2d5a3d;margin-bottom:8px}
+.stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:0 15px;margin-bottom:15px}
+.stat-card{background:#fff;border-radius:15px;padding:20px;text-align:center;border-top:4px solid #6B8E7B}
+.stat-number{font-size:32px;font-weight:700;color:#6B8E7B}
+.stat-label{font-size:13px;color:#666}
+.tabs-container{background:#e8f0eb;padding:10px 15px;display:flex;gap:8px;overflow-x:auto;margin-bottom:15px}
+.tab{padding:10px 18px;border-radius:25px;border:none;background:#fff;color:#666;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+.tab.active{background:#6B8E7B;color:#fff}
+.admin-section{display:none;padding:0 15px}
+.admin-section.active{display:block}
+.section-card{background:#fff;border-radius:15px;padding:20px;margin-bottom:15px}
+.section-title{font-family:Georgia,serif;font-size:18px;font-weight:700;color:#2d5a3d;margin-bottom:15px}
+.search-box{background:#f5f5f5;border:2px solid #e0e0e0;border-radius:12px;padding:12px 15px;display:flex;align-items:center;gap:10px;margin-bottom:15px}
+.search-box input{border:none;background:none;flex:1;font-size:15px;outline:none}
+.filter-buttons{display:flex;gap:10px;margin-bottom:15px;flex-wrap:wrap}
+.filter-btn{padding:10px 20px;border-radius:25px;border:2px solid #6B8E7B;background:#fff;color:#6B8E7B;cursor:pointer}
+.filter-btn.active{background:#6B8E7B;color:#fff}
+.reservation-item{background:#fff;border-radius:12px;padding:15px;margin-bottom:12px;border-left:4px solid #6B8E7B}
+.reservation-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.reservation-name{font-weight:700;font-size:15px}
+.reservation-details{font-size:13px;color:#666;margin:10px 0}
+.action-buttons{display:flex;gap:10px;margin-top:12px}
+.action-buttons button{flex:1;padding:10px;border:none;border-radius:8px;font-weight:600;cursor:pointer}
+.btn-approve{background:#6B8E7B;color:#fff}
+.btn-reject{background:#e53935;color:#fff}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;display:flex;justify-content:space-around;padding:10px 0;box-shadow:0 -2px 10px rgba(0,0,0,.1);z-index:1000}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:5px 20px;color:#999;font-size:12px}
+.nav-item.active{color:#6B8E7B}
+.modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.9);z-index:2000;align-items:center;justify-content:center;padding:20px}
+.modal.active{display:flex}
+.modal-content{background:#fff;padding:30px;border-radius:20px;max-width:400px;width:90%}
+.modal-content input{width:100%;padding:15px;border:2px solid #e0e0e0;border-radius:10px;font-size:16px;margin-bottom:15px;text-align:center}
+.btn{padding:12px 20px;border:none;border-radius:10px;font-weight:700;cursor:pointer;margin:5px;font-size:14px}
+.btn-primary{background:#6B8E7B;color:#fff}
+.btn-info{background:#2196f3;color:#fff}
+.btn-warning{background:#ff9800;color:#fff}
+.diagnostic-box{background:#f5f5f5;border-radius:10px;padding:15px;margin:10px 0;font-family:monospace;font-size:12px;max-height:400px;overflow-y:auto}
+.diagnostic-box .ok{color:#2e7d32}
+.diagnostic-box .error{color:#c62828}
+.diagnostic-box .info{color:#1565c0}
+.form-group{margin-bottom:15px}
+.form-group label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
+.form-group input{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:10px;font-size:15px}
+.info-box{background:#e8f0eb;border-left:4px solid #6B8E7B;padding:12px;border-radius:8px;margin-bottom:15px;font-size:13px;color:#2d5a3d}
+.info-box p{margin:4px 0}
+@media(max-width:480px){.horarios-grid{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<div class="header">
+<div class="header-logo">
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+<rect width="100" height="100" fill="#8FA89B" rx="8"/>
+<line x1="50" y1="15" x2="50" y2="60" stroke="#1a1a1a" stroke-width="1.5"/>
+<text x="58" y="45" font-family="Georgia,serif" font-size="32" font-weight="bold" fill="#1a1a1a">M</text>
+<text x="22" y="60" font-family="Georgia,serif" font-size="32" font-weight="bold" fill="#1a1a1a">P</text>
+</svg>
+<div class="header-brand">
+<div class="header-title">PELUQUERÍA MAITÉ</div>
+<div class="header-slogan">Tu corte al instante</div>
+</div>
+</div>
+<div class="header-status">
+<div class="status-dot offline" id="statusDot"></div>
+<span id="statusText">Conectando...</span>
+</div>
+</div>
+<div class="admin-banner" onclick="abrirAdmin()">
+<span>👑 Toca aquí para gestionar el sistema</span>
+<span>→</span>
+</div>
+<div class="sync-banner syncing" id="syncBanner">
+<span>🔄</span>
+<span id="syncText">Conectando con la nube...</span>
+</div>
+<div id="homeTab">
+<div class="proceso-info">
+<div class="proceso-title">📖 ¿Cómo hacer tu reserva?</div>
+<div class="proceso-step"><div class="proceso-number">1</div><div class="proceso-text"><strong>Selecciona fecha:</strong> Toca el día disponible en el calendario (hasta 45 días)</div></div>
+<div class="proceso-step"><div class="proceso-number">2</div><div class="proceso-text"><strong>Elige horario:</strong> Selecciona la hora disponible que prefieras</div></div>
+<div class="proceso-step"><div class="proceso-number">3</div><div class="proceso-text"><strong>Tus datos:</strong> Escribe tu nombre completo y número de teléfono</div></div>
+<div class="proceso-step"><div class="proceso-number">4</div><div class="proceso-text"><strong>Servicios:</strong> Selecciona uno o varios servicios (máximo 2 por horario)</div></div>
+<div class="proceso-step"><div class="proceso-number">5</div><div class="proceso-text"><strong>Envío:</strong> Confirma y envía tu solicitud</div></div>
+<div class="info-box" style="margin-top:15px;margin-bottom:0">
+<p>📅 <strong>Reservas desde diciembre 2026:</strong> Se requiere seña de <strong>500 CUP</strong> y comprobante de pago</p>
+<p> Teléfono para confirmar: <strong>53142445</strong></p>
+<p>ℹ️ Cada horario acepta hasta 2 servicios. <strong>Regla:</strong> Nunca puede haber 2 Cortes de cabello en el mismo horario.</p>
+</div>
+</div>
+<div class="modo-reserva-aviso" id="modoReservaAviso"></div>
+<div class="calendar-card">
+<div class="calendar-header">
+<div class="calendar-title">📅 Selecciona una Fecha</div>
+<div class="calendar-nav">
+<button class="calendar-nav-btn" onclick="cambiarMes(-1)">◀</button>
+<button class="calendar-nav-btn" onclick="cambiarMes(1)">▶</button>
+</div>
+</div>
+<div class="calendar-month" id="calendarMonth"></div>
+<div class="calendar-grid" id="calendarGrid"></div>
+<div style="text-align:center;margin-top:10px;font-size:12px;color:#666">📆 Puedes reservar hasta <strong>45 días</strong> a partir de hoy</div>
+</div>
+<div class="horarios-card" id="horariosCard">
+<div class="horarios-title">🕐 Horarios disponibles para <span id="horariosFechaTexto"></span></div>
+<div class="horarios-leyenda">
+<div class="leyenda-item"><div class="leyenda-dot disponible"></div><span>Disponible</span></div>
+<div class="leyenda-item"><div class="leyenda-dot con-corte"></div><span>Con Corte</span></div>
+<div class="leyenda-item"><div class="leyenda-dot parcial"></div><span>1/2 ocupado</span></div>
+<div class="leyenda-item"><div class="leyenda-dot ocupado"></div><span>Ocupado</span></div>
+</div>
+<div class="horarios-grid" id="horariosGrid"></div>
+</div>
+</div>
+<div id="adminTab" class="admin-panel">
+<div class="admin-welcome">
+<div style="font-size:48px;margin-bottom:10px"></div>
+<div class="admin-welcome-title">Panel de Administración</div>
+<div style="color:#2d5a3d;font-size:14px">Bienvenida, gestiona todas las funciones</div>
+</div>
+<div class="stats-grid">
+<div class="stat-card"><div class="stat-number" id="statTotal">0</div><div class="stat-label">Total</div></div>
+<div class="stat-card"><div class="stat-number" id="statPending">0</div><div class="stat-label">Pendientes</div></div>
+<div class="stat-card"><div class="stat-number" id="statConfirmed">0</div><div class="stat-label">Confirmadas</div></div>
+<div class="stat-card"><div class="stat-number" id="statToday">0</div><div class="stat-label">Hoy</div></div>
+</div>
+<div class="tabs-container">
+<button class="tab active" onclick="mostrarSeccion('reservas',this)">📋 Reservas</button>
+<button class="tab" onclick="mostrarSeccion('diagnostico',this)">🔍 Diagnóstico</button>
+<button class="tab" onclick="mostrarSeccion('config',this)">⚙️ Config</button>
+<button class="tab" onclick="mostrarSeccion('importar',this)">📥 Importar</button>
+</div>
+<div class="admin-section active" id="section-reservas">
+<div class="section-card">
+<div class="section-title">📋 Todas las Reservas</div>
+<div class="search-box"><span>🔍</span><input type="text" placeholder="Buscar..." id="searchInput" oninput="renderReservas()"></div>
+<div class="filter-buttons">
+<button class="filter-btn active" onclick="setFilter('all',this)">Todas</button>
+<button class="filter-btn" onclick="setFilter('confirmed',this)">✅ Confirmadas</button>
+<button class="filter-btn" onclick="setFilter('pending',this)">⏳ Pendientes</button>
+<button class="filter-btn" onclick="setFilter('cancelled',this)">❌ Canceladas</button>
+</div>
+<div id="reservasList"></div>
+</div>
+</div>
+<div class="admin-section" id="section-diagnostico">
+<div class="section-card">
+<div class="section-title">🔍 Diagnóstico de Conexión</div>
+<button class="btn btn-info" onclick="ejecutarDiagnostico()" style="width:100%;margin-bottom:10px">🔌 Ejecutar Diagnóstico</button>
+<button class="btn btn-warning" onclick="limpiarCache()" style="width:100%;margin-bottom:10px">🗑️ Limpiar Caché Local</button>
+<button class="btn btn-primary" onclick="forzarSincronizacion()" style="width:100%">🔄 Forzar Sincronización</button>
+<div class="diagnostic-box" id="diagnosticBox"><div class="info">⏳ Esperando diagnóstico...</div></div>
+</div>
+</div>
+<div class="admin-section" id="section-config">
+<div class="section-card">
+<div class="section-title">⚙️ Configuración Supabase</div>
+<div class="info-box">
+<p>⚠️ <strong>IMPORTANTE:</strong> Las tablas deben llamarse <code>citas</code> y <code>bloqueos</code>.</p>
+<p>Columnas de <code>citas</code>: id, nombre, telefono, servicio, fecha, hora, estado, createdAt</p>
+<p>Columnas de <code>bloqueos</code>: id, type, date, reason, startTime, endTime</p>
+</div>
+<div class="form-group"><label>URL del proyecto:</label><input type="text" id="configUrl" value="https://vgplzpaezxyoomdwcksa.supabase.co"></div>
+<div class="form-group"><label>API Key (anon):</label><input type="password" id="configKey" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZncGx6cGFlenh5b29tZHdja3NhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4NDMwMzcsImV4cCI6MjA5ODQxOTAzN30.K6E5iDNeWXScKvs5gJCIZmykt8XMffwsMHNHf_q-u6w"></div>
+<button class="btn btn-primary" onclick="guardarConfig()" style="width:100%">💾 Guardar y Reconectar</button>
+</div>
+</div>
+<div class="admin-section" id="section-importar">
+<div class="section-card">
+<div class="section-title">📥 Importar Backup JSON</div>
+<div class="info-box">
+<p>⚠️ <strong>IMPORTANTE:</strong> Selecciona tu archivo JSON de backup.</p>
+<p>Después de importar, pulsa "📤 Subir TODO a la Nube" para sincronizar.</p>
+</div>
+<input type="file" id="importFile" accept=".json" onchange="importarBackup(event)" style="width:100%;padding:10px;margin-bottom:10px">
+<button class="btn btn-warning" onclick="subirTodoANube()" style="width:100%;margin-bottom:10px">📤 Subir TODO a la Nube</button>
+<div class="diagnostic-box" id="importBox"></div>
+</div>
+</div>
+</div>
+<div class="bottom-nav">
+<div class="nav-item active" onclick="mostrarInicio()"><span>🏠</span><span>Inicio</span></div>
+<div class="nav-item" onclick="abrirAdmin()"><span>⚙️</span><span>Admin</span></div>
+</div>
+<div class="modal" id="passwordModal">
+<div class="modal-content">
+<h3 style="text-align:center;margin-bottom:20px">🔐 Acceso Administrativo</h3>
+<input type="password" id="adminPassword" placeholder="Contraseña">
+<button class="btn btn-primary" onclick="verificarPassword()" style="width:100%">Acceder</button>
+<button class="btn" onclick="cerrarModal()" style="width:100%;background:#f5f5f5;margin-top:10px">Cancelar</button>
+</div>
+</div>
+<script>
+// ===== CONFIGURACIÓN =====
+const ADMIN_PASSWORD = '120193';
+const FECHA_CORTE_SENA = new Date(2026, 11, 1);
+const MAX_DAYS = 45;
+const MAX_SLOTS = 2;
+const TABLA_CITAS = 'citas';
+const TABLA_BLOQUEOS = 'bloqueos';
+
+let SUPABASE_URL = localStorage.getItem('pm_url') || 'https://vgplzpaezxyoomdwcksa.supabase.co';
+let SUPABASE_KEY = localStorage.getItem('pm_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZncGx6cGFlenh5b29tZHdja3NhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4NDMwMzcsImV4cCI6MjA5ODQxOTAzN30.K6E5iDNeWXScKvs5gJCIZmykt8XMffwsMHNHf_q-u6w';
+
+let supabase = null;
+let reservations = [];
+let blocks = [];
+let currentDate = new Date();
+currentDate.setDate(1);
+let selectedDate = null;
+let currentFilter = 'all';
+let isConnected = false;
+
+// ===== INICIALIZACIÓN =====
+document.addEventListener('DOMContentLoaded', function() {
+    console.log(' Iniciando sistema...');
+    loadLocal();
+    renderCalendar();
+    updateStats();
+    setTimeout(function() { initSupabase(); }, 500);
+});
+
+function loadLocal() {
+    try {
+        var r = localStorage.getItem('pm_reservations');
+        if (r) reservations = JSON.parse(r);
+        var b = localStorage.getItem('pm_blocks');
+        if (b) blocks = JSON.parse(b);
+        console.log('📊 Datos locales:', reservations.length, 'reservas,', blocks.length, 'bloqueos');
+    } catch(e) { console.error('Error:', e); }
+}
+
+function saveLocal() {
+    localStorage.setItem('pm_reservations', JSON.stringify(reservations));
+    localStorage.setItem('pm_blocks', JSON.stringify(blocks));
+}
+
+// ===== SUPABASE =====
+function initSupabase() {
+    try {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        console.log('✅ Cliente Supabase creado');
+        updateStatus('syncing', 'Conectando a la nube...');
+        cargarDatosNube();
+    } catch(e) {
+        console.error(' Error:', e);
+        updateStatus('error', 'Error: ' + e.message);
+    }
+}
+
+function updateStatus(state, msg) {
+    var dot = document.getElementById('statusDot');
+    var text = document.getElementById('statusText');
+    var banner = document.getElementById('syncBanner');
+    var bannerText = document.getElementById('syncText');
+    dot.className = 'status-dot ' + (state === 'ok' ? 'online' : 'offline');
+    text.textContent = state === 'ok' ? 'Online' : 'Offline';
+    banner.className = 'sync-banner ' + state;
+    bannerText.textContent = msg;
+}
+
+async function cargarDatosNube() {
+    if (!supabase) return;
+    try {
+        console.log(' Cargando datos desde Supabase...');
+        var result1 = await supabase.from(TABLA_CITAS).select('*').order('fecha', { ascending: true });
+        if (result1.error) {
+            console.error('❌ Error citas:', result1.error);
+            updateStatus('error', 'Error: ' + result1.error.message);
+            return;
+        }
+        var result2 = await supabase.from(TABLA_BLOQUEOS).select('*');
+        if (result2.error) console.warn('️ Error bloqueos:', result2.error);
+        
+        reservations = (result1.data || []).map(function(c) {
+            return {
+                id: String(c.id || '').trim(),
+                nombre: limpiarString(c.nombre || ''),
+                telefono: limpiarString(c.telefono || ''),
+                servicio: limpiarString(c.servicio || ''),
+                fecha: limpiarString(c.fecha || ''),
+                hora: limpiarString(c.hora || ''),
+                estado: mapearEstado(c.estado || 'pending'),
+                receipt: c.receipt || null,
+                requiereSena: false,
+                createdAt: c.createdAt || new Date().toISOString()
+            };
+        });
+        
+        blocks = (result2.data || []).map(function(b) {
+            return {
+                id: String(b.id || '').trim(),
+                type: b.type || 'full',
+                date: limpiarString(b.date || ''),
+                reason: limpiarString(b.reason || ''),
+                startTime: limpiarString(b.startTime || ''),
+                endTime: limpiarString(b.endTime || '')
+            };
+        });
+        
+        isConnected = true;
+        saveLocal();
+        renderCalendar();
+        updateStats();
+        updateStatus('ok', '✅ Conectado - ' + reservations.length + ' citas en la nube');
+        console.log('✅ Datos cargados:', reservations.length, 'citas,', blocks.length, 'bloqueos');
+    } catch(e) {
+        console.error(' Error:', e);
+        updateStatus('error', 'Error: ' + e.message);
+    }
+}
+
+async function guardarEnNube(cita) {
+    if (!supabase || !isConnected) return false;
+    try {
+        var result = await supabase.from(TABLA_CITAS).upsert([{
+            id: cita.id,
+            nombre: cita.nombre,
+            telefono: cita.telefono,
+            servicio: cita.servicio,
+            fecha: cita.fecha,
+            hora: cita.hora,
+            estado: cita.estado,
+            receipt: cita.receipt || null,
+            requiereSena: cita.requiereSena || false,
+            createdAt: cita.createdAt
+        }]);
+        return !result.error;
+    } catch(e) { return false; }
+}
+
+async function guardarBloqueoEnNube(bloqueo) {
+    if (!supabase || !isConnected) return false;
+    try {
+        var result = await supabase.from(TABLA_BLOQUEOS).upsert([bloqueo]);
+        return !result.error;
+    } catch(e) { return false; }
+}
+
+// ===== UTILIDADES =====
+function limpiarString(v) {
+    if (typeof v !== 'string') return v;
+    return v.trim().replace(/\s+/g, ' ');
+}
+
+function limpiarObjeto(obj) {
+    if (obj === null || typeof obj !== 'object') {
+        if (typeof obj === 'string') return obj.trim();
+        return obj;
+    }
+    if (Array.isArray(obj)) return obj.map(limpiarObjeto);
+    var cleaned = {};
+    for (var key in obj) { cleaned[key.trim()] = limpiarObjeto(obj[key]); }
+    return cleaned;
+}
+
+function mapearEstado(e) {
+    if (!e) return 'pending';
+    var s = limpiarString(e).toLowerCase();
+    if (s === 'finalizado' || s === 'confirmed' || s === 'approved' || s === 'confirmado') return 'confirmed';
+    if (s === 'rejected' || s === 'cancelled' || s === 'cancelado' || s === 'rechazado') return 'cancelled';
+    return 'pending';
+}
+
+function formatearFecha(d) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function getSlotInfo(fecha, hora) {
+    var slot = reservations.filter(function(r) {
+        return r.fecha === fecha && r.hora === hora && (r.estado === 'confirmed' || r.estado === 'pending');
+    });
+    var total = 0, hayCorte = false;
+    for (var i = 0; i < slot.length; i++) {
+        var servicios = slot[i].servicio ? slot[i].servicio.split(',').map(function(s) { return s.trim(); }) : [];
+        total += servicios.length;
+        for (var j = 0; j < servicios.length; j++) {
+            if (servicios[j].toLowerCase().indexOf('corte') !== -1) { hayCorte = true; break; }
+        }
+    }
+    if (total >= MAX_SLOTS) return { estado: 'ocupado' };
+    if (total === 1 && hayCorte) return { estado: 'con-corte' };
+    if (total === 1) return { estado: 'parcial' };
+    return { estado: 'disponible' };
+}
+
+// ===== CALENDARIO =====
+function renderCalendar() {
+    var grid = document.getElementById('calendarGrid');
+    var months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    var days = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+    document.getElementById('calendarMonth').textContent = months[currentDate.getMonth()] + ' ' + currentDate.getFullYear();
+    var html = '';
+    for (var i = 0; i < days.length; i++) html += '<div class="calendar-day-header">' + days[i] + '</div>';
+    var firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+    var daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+    var today = new Date(); today.setHours(0,0,0,0);
+    var maxDate = new Date(); maxDate.setDate(maxDate.getDate() + MAX_DAYS);
+    for (var i = 0; i < firstDay; i++) html += '<div class="calendar-day disabled"></div>';
+    for (var day = 1; day <= daysInMonth; day++) {
+        var date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+        var isPast = date < today;
+        var isFuture = date > maxDate;
+        var dateStr = formatearFecha(date);
+        var isBlocked = blocks.some(function(b) { return b.type === 'full' && b.date === dateStr; });
+        var isDisabled = isPast || isFuture || !DIAS_LABORABLES[date.getDay()] || isBlocked;
+        var isSelected = selectedDate && selectedDate.getDate() === day && selectedDate.getMonth() === currentDate.getMonth();
+        var hasAppt = reservations.some(function(r) { return r.fecha === dateStr; });
+        var cls = 'calendar-day';
+        if (isDisabled) cls += ' disabled';
+        if (isSelected) cls += ' selected';
+        if (hasAppt) cls += ' has-appointments';
+        html += '<div class="' + cls + '" onclick="seleccionarFecha(' + day + ')">' + day + '</div>';
+    }
+    grid.innerHTML = html;
+}
+
+var DIAS_LABORABLES = { 0: false, 1: true, 2: true, 3: true, 4: true, 5: true, 6: false };
+
+function cambiarMes(delta) {
+    currentDate.setMonth(currentDate.getMonth() + delta);
+    renderCalendar();
+}
+
+function seleccionarFecha(day) {
+    var today = new Date(); today.setHours(0,0,0,0);
+    var maxDate = new Date(); maxDate.setDate(maxDate.getDate() + MAX_DAYS);
+    var date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    if (date < today) { alert('⚠️ No puedes reservar en días pasados'); return; }
+    if (date > maxDate) { alert('️ Solo hasta ' + MAX_DAYS + ' días'); return; }
+    if (!DIAS_LABORABLES[date.getDay()]) { alert('⚠️ La peluquería no abre ese día'); return; }
+    if (blocks.some(function(b) { return b.type === 'full' && b.date === formatearFecha(date); })) {
+        alert(' Día bloqueado'); return;
+    }
+    selectedDate = date;
+    renderCalendar();
+    mostrarHorarios(date);
+    var aviso = document.getElementById('modoReservaAviso');
+    var months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    var dateStr = day + ' de ' + months[currentDate.getMonth()] + ' ' + currentDate.getFullYear();
+    if (date >= FECHA_CORTE_SENA) {
+        aviso.className = 'modo-reserva-aviso visible seña';
+        aviso.innerHTML = '<strong> Reserva con Seña - ' + dateStr + '</strong>A partir de diciembre 2026, se requiere una seña de <strong>500 CUP</strong>.<br><br>💳 Tarjeta: <strong>9224-0699-9853-7654</strong> (Maite Reyes Reyes)<br>📞 Confirmar al: <strong>53142445</strong>';
+    } else {
+        aviso.className = 'modo-reserva-aviso visible modern';
+        aviso.innerHTML = '<strong>📅 Reserva Moderna - ' + dateStr + '</strong>¡Excelente! Para reservas antes de diciembre 2026 <strong>NO se requiere seña</strong>.';
+    }
+}
+
+function mostrarHorarios(date) {
+    var card = document.getElementById('horariosCard');
+    var grid = document.getElementById('horariosGrid');
+    var dateStr = formatearFecha(date);
+    var dayName = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][date.getDay()];
+    var monthName = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][date.getMonth()];
+    document.getElementById('horariosFechaTexto').textContent = dayName + ' ' + date.getDate() + ' de ' + monthName;
+    var horarios = ['09:00','09:45','10:30','11:15','12:00','12:45','13:30','14:15','15:00','15:45'];
+    var hourBlocks = blocks.filter(function(b) { return b.type === 'hours' && b.date === dateStr; });
+    var html = '';
+    for (var i = 0; i < horarios.length; i++) {
+        var time = horarios[i];
+        var isBlocked = hourBlocks.some(function(b) { return b.startTime === time; });
+        var info = getSlotInfo(dateStr, time);
+        var cls = 'horario-slot ' + info.estado;
+        var label = info.estado === 'disponible' ? 'Disponible' : info.estado === 'con-corte' ? 'Con Corte' : info.estado === 'parcial' ? '1/2' : 'Ocupado';
+        if (isBlocked) { cls = 'horario-slot ocupado'; label = 'Bloqueado'; }
+        var clickable = !isBlocked && info.estado !== 'ocupado';
+        if (clickable) {
+            html += '<div class="' + cls + '" onclick="seleccionarHora(\'' + time + '\', this)">' + time + '<span class="slot-label">' + label + '</span></div>';
+        } else {
+            html += '<div class="' + cls + '">' + time + '<span class="slot-label">' + label + '</span></div>';
+        }
+    }
+    grid.innerHTML = html;
+    card.classList.add('visible');
+}
+
+function seleccionarHora(time, el) {
+    var slots = document.querySelectorAll('.horario-slot');
+    for (var i = 0; i < slots.length; i++) slots[i].classList.remove('selected');
+    el.classList.add('selected');
+    alert('✅ Horario seleccionado: ' + time);
+}
+  // ===== ADMIN =====
+function abrirAdmin() {
+    document.getElementById('passwordModal').style.display = 'flex';
+    document.getElementById('adminPassword').value = '';
+    setTimeout(function() { document.getElementById('adminPassword').focus(); }, 100);
+}
+
+function cerrarModal() {
+    document.getElementById('passwordModal').style.display = 'none';
+}
+
+function verificarPassword() {
+    var pass = document.getElementById('adminPassword').value;
+    if (pass === ADMIN_PASSWORD) {
+        cerrarModal();
+        document.getElementById('homeTab').style.display = 'none';
+        document.getElementById('adminTab').classList.add('active');
+        var navItems = document.querySelectorAll('.nav-item');
+        navItems[0].classList.remove('active');
+        navItems[1].classList.add('active');
+        renderReservas();
+        updateStats();
+    } else {
+        alert(' Contraseña incorrecta');
+    }
+}
+
+function mostrarInicio() {
+    document.getElementById('homeTab').style.display = 'block';
+    document.getElementById('adminTab').classList.remove('active');
+    var navItems = document.querySelectorAll('.nav-item');
+    navItems[0].classList.add('active');
+    navItems[1].classList.remove('active');
+}
+
+function mostrarSeccion(section, btn) {
+    var sections = document.querySelectorAll('.admin-section');
+    for (var i = 0; i < sections.length; i++) sections[i].classList.remove('active');
+    var tabs = document.querySelectorAll('.tab');
+    for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
+    document.getElementById('section-' + section).classList.add('active');
+    btn.classList.add('active');
+}
+
+function renderReservas() {
+    var list = document.getElementById('reservasList');
+    var filtered = reservations;
+    if (currentFilter !== 'all') filtered = reservations.filter(function(r) { return r.estado === currentFilter; });
+    var search = document.getElementById('searchInput') ? document.getElementById('searchInput').value.toLowerCase() : '';
+    if (search) filtered = filtered.filter(function(r) { return (r.nombre || '').toLowerCase().indexOf(search) !== -1 || (r.telefono || '').indexOf(search) !== -1; });
+    if (filtered.length === 0) { list.innerHTML = '<p style="text-align:center;color:#999;padding:20px">No hay reservas</p>'; return; }
+    var html = '';
+    for (var i = 0; i < filtered.length; i++) {
+        var r = filtered[i];
+        var bgColor = r.estado === 'confirmed' ? '#e8f0eb' : r.estado === 'pending' ? '#fff9c4' : '#ffebee';
+        var textColor = r.estado === 'confirmed' ? '#2d5a3d' : r.estado === 'pending' ? '#f57f17' : '#c62828';
+        var statusText = r.estado === 'pending' ? ' Pendiente' : r.estado === 'confirmed' ? '✅ Confirmada' : '❌ Cancelada';
+        html += '<div class="reservation-item">';
+        html += '<div class="reservation-header">';
+        html += '<div class="reservation-name">' + (r.nombre || 'Sin nombre') + '</div>';
+        html += '<span style="padding:4px 12px;border-radius:15px;font-size:12px;background:' + bgColor + ';color:' + textColor + '">' + statusText + '</span>';
+        html += '</div>';
+        html += '<div class="reservation-details">';
+        html += '📱 ' + (r.telefono || 'Sin teléfono') + '<br>';
+        html += '📅 ' + (r.fecha || 'Sin fecha') + ' a las ' + (r.hora || 'Sin hora') + '<br>';
+        html += '💇 ' + (r.servicio || 'Sin servicio');
+        html += '</div>';
+        html += '<div class="action-buttons">';
+        html += '<button class="btn-approve" onclick="aprobarReserva(\'' + r.id + '\')">✅ Confirmar</button>';
+        html += '<button class="btn-reject" onclick="rechazarReserva(\'' + r.id + '\')">❌ Cancelar</button>';
+        html += '</div>';
+        html += '</div>';
+    }
+    list.innerHTML = html;
+}
+
+async function aprobarReserva(id) {
+    var r = reservations.find(function(x) { return x.id === id; });
+    if (r) {
+        r.estado = 'confirmed';
+        saveLocal();
+        if (isConnected && supabase) await guardarEnNube(r);
+        renderReservas();
+        updateStats();
+        alert('✅ Reserva confirmada');
+    }
+}
+
+async function rechazarReserva(id) {
+    var reason = prompt('Motivo del rechazo:');
+    if (reason) {
+        var r = reservations.find(function(x) { return x.id === id; });
+        if (r) {
+            r.estado = 'cancelled';
+            saveLocal();
+            if (isConnected && supabase) await guardarEnNube(r);
+            renderReservas();
+            updateStats();
+            alert('❌ Reserva cancelada');
+        }
+    }
+}
+
+function setFilter(filter, btn) {
+    currentFilter = filter;
+    var buttons = document.querySelectorAll('.filter-btn');
+    for (var i = 0; i < buttons.length; i++) buttons[i].classList.remove('active');
+    btn.classList.add('active');
+    renderReservas();
+}
+
+function updateStats() {
+    var today = new Date().toISOString().split('T')[0];
+    document.getElementById('statTotal').textContent = reservations.length;
+    document.getElementById('statPending').textContent = reservations.filter(function(r) { return r.estado === 'pending'; }).length;
+    document.getElementById('statConfirmed').textContent = reservations.filter(function(r) { return r.estado === 'confirmed'; }).length;
+    document.getElementById('statToday').textContent = reservations.filter(function(r) { return r.fecha === today; }).length;
+}
+
+// ===== DIAGNÓSTICO =====
+async function ejecutarDiagnostico() {
+    var box = document.getElementById('diagnosticBox');
+    box.innerHTML = '<div class="info"> Ejecutando diagnóstico...</div>';
+    var log = [];
+    function addLog(msg, type) {
+        type = type || 'info';
+        log.push('<div class="' + type + '">' + msg + '</div>');
+        box.innerHTML = log.join('');
+    }
+    addLog('1️⃣ Verificando credenciales...', 'info');
+    if (!SUPABASE_URL || !SUPABASE_KEY) { addLog('❌ Faltan URL o API Key', 'error'); return; }
+    addLog('✅ Credenciales OK', 'ok');
+    addLog('2️ Inicializando Supabase...', 'info');
+    if (!supabase) supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    addLog('✅ Cliente Supabase inicializado', 'ok');
+    addLog('3️⃣ Probando tabla "' + TABLA_CITAS + '"...', 'info');
+    try {
+        var result = await supabase.from(TABLA_CITAS).select('id').limit(1);
+        if (result.error) {
+            addLog(' Error: ' + result.error.message, 'error');
+            if (result.error.message.includes('does not exist')) addLog('💡 La tabla NO existe. Créala en SQL Editor', 'info');
+        } else {
+            var countResult = await supabase.from(TABLA_CITAS).select('*', { count: 'exact', head: true });
+            addLog('✅ Tabla "' + TABLA_CITAS + '" accesible (' + (countResult.count || 0) + ' registros)', 'ok');
+        }
+    } catch(e) { addLog('❌ ' + e.message, 'error'); }
+    addLog('4️⃣ Probando tabla "' + TABLA_BLOQUEOS + '"...', 'info');
+    try {
+        var result = await supabase.from(TABLA_BLOQUEOS).select('id').limit(1);
+        if (result.error) addLog('❌ Error: ' + result.error.message, 'error');
+        else {
+            var countResult = await supabase.from(TABLA_BLOQUEOS).select('*', { count: 'exact', head: true });
+            addLog('✅ Tabla "' + TABLA_BLOQUEOS + '" accesible (' + (countResult.count || 0) + ' registros)', 'ok');
+        }
+    } catch(e) { addLog('❌ ' + e.message, 'error'); }
+    addLog('5️⃣ Datos locales...', 'info');
+    addLog('📊 Reservas: ' + reservations.length, 'info');
+    addLog('🚫 Bloqueos: ' + blocks.length, 'info');
+    addLog(' Conectado: ' + (isConnected ? 'SÍ' : 'NO'), 'info');
+    addLog('✅ Diagnóstico completado', 'ok');
+}
+
+function forzarSincronizacion() {
+    console.log('🔄 Forzando sincronización...');
+    updateStatus('syncing', 'Sincronizando...');
+    cargarDatosNube();
+    alert('🔄 Sincronización iniciada. Los datos se actualizarán en unos segundos.');
+}
+
+function limpiarCache() {
+    if (confirm('⚠️ ¿Limpiar caché local? Esto forzará recargar desde la nube.')) {
+        localStorage.removeItem('pm_reservations');
+        localStorage.removeItem('pm_blocks');
+        reservations = [];
+        blocks = [];
+        alert('✅ Caché limpiado. Recargando datos...');
+        cargarDatosNube();
+    }
+}
+
+function guardarConfig() {
+    SUPABASE_URL = document.getElementById('configUrl').value.trim();
+    SUPABASE_KEY = document.getElementById('configKey').value.trim();
+    localStorage.setItem('pm_url', SUPABASE_URL);
+    localStorage.setItem('pm_key', SUPABASE_KEY);
+    alert('✅ Configuración guardada. Reconectando...');
+    initSupabase();
+}
+
+// ===== IMPORTAR BACKUP =====
+function importarBackup(event) {
+    var file = event.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            var raw = JSON.parse(e.target.result);
+            var box = document.getElementById('importBox');
+            box.innerHTML = '<div class="info">🔄 Procesando...</div>';
+            var data = limpiarObjeto(raw);
+            var bookings = data.bookings || data.clientas || [];
+            if (!Array.isArray(bookings)) bookings = [bookings];
+            var nuevasReservas = bookings.map(function(r) {
+                var n = limpiarObjeto(r);
+                return {
+                    id: String(n.id || ('r' + Date.now() + Math.random())),
+                    nombre: limpiarString(n.nombre || n.name || ''),
+                    telefono: limpiarString(n.telefono || n.phone || ''),
+                    servicio: limpiarString(n.servicio || n.service || ''),
+                    fecha: limpiarString(n.fecha || n.date || ''),
+                    hora: limpiarString(n.hora || n.time || ''),
+                    estado: mapearEstado(n.estado || n.status || 'pending'),
+                    receipt: n.receipt || null,
+                    requiereSena: false,
+                    createdAt: n.createdAt || new Date().toISOString()
+                };
+            });
+            reservations = nuevasReservas;
+            if (data.blocks && Array.isArray(data.blocks)) {
+                blocks = data.blocks.map(function(b) {
+                    var n = limpiarObjeto(b);
+                    return {
+                        id: String(n.id || ('b' + Date.now())),
+                        type: n.type || 'full',
+                        date: limpiarString(n.date || ''),
+                        reason: limpiarString(n.reason || ''),
+                        startTime: limpiarString(n.startTime || ''),
+                        endTime: limpiarString(n.endTime || '')
+                    };
+                });
+            }
+            saveLocal();
+            renderCalendar();
+            renderReservas();
+            updateStats();
+            box.innerHTML = '<div class="ok">✅ Importadas ' + reservations.length + ' reservas y ' + blocks.length + ' bloqueos</div>';
+            alert('✅ Importadas ' + reservations.length + ' reservas\n\nAhora pulsa "📤 Subir TODO a la Nube" para sincronizar.');
+        } catch(error) {
+            var box = document.getElementById('importBox');
+            box.innerHTML = '<div class="error">❌ Error: ' + error.message + '</div>';
+            alert('❌ Error: ' + error.message);
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+}
+
+async function subirTodoANube() {
+    if (!supabase || !isConnected) { alert('️ Primero conecta con Supabase'); return; }
+    if (!confirm('⚠️ ¿Subir ' + reservations.length + ' reservas y ' + blocks.length + ' bloqueos a la nube?')) return;
+    var box = document.getElementById('importBox');
+    box.innerHTML = '<div class="info">🔄 Subiendo datos...</div>';
+    var ok = 0, err = 0;
+    for (var i = 0; i < reservations.length; i++) {
+        if (await guardarEnNube(reservations[i])) ok++; else err++;
+        if (i % 50 === 0) box.innerHTML = '<div class="info">🔄 Subiendo... ' + (i + 1) + '/' + reservations.length + '</div>';
+    }
+    for (var i = 0; i < blocks.length; i++) {
+        if (await guardarBloqueoEnNube(blocks[i])) ok++; else err++;
+    }
+    box.innerHTML = '<div class="ok">✅ Subida completada</div>';
+    box.innerHTML += '<div class="info">📊 ' + ok + ' subidos correctamente</div>';
+    box.innerHTML += '<div class="info">❌ ' + err + ' errores</div>';
+    alert('✅ ' + ok + ' OK, ' + err + ' errores');
+}
+</script>
+</body>
+</html>
